@@ -92,16 +92,29 @@ export default {
 			try {
 				console.log("payload: "+JSON.stringify(payload)+" | context: "+JSON.stringify(context));
 
-				const client = context.client;
+				const checkboxAction = payload.actions[0] as CheckboxesAction;
+				const selectedOptions = checkboxAction.selected_options;
 
-				const res = await client.views.open({
-					trigger_id: payload.trigger_id,
-					view:{"type":"modal","submit":{"type":"plain_text","text":"Submit","emoji":true},"close":{"type":"plain_text","text":"Cancel","emoji":true},"title":{"type":"plain_text","text":"test view","emoji":true},"blocks":[{"dispatch_action":true,"type":"input","element":{"type":"plain_text_input","action_id":"test_action_id"},"label":{"type":"plain_text","text":"Label","emoji":true},"optional":false}]}
-				});
+				return {
+					response_action: "update",
+					view: {
+						type: "modal",
+						callback_id: payload.view.callback_id,
+						title: payload.view.title,
+						blocks:[
+								{
+									"type": "section",
+									"text": {
+										"type": "plain_text",
+										"text": "your view has been updated!",
+										"emoji": true
+									}
+								}
+							]
+					}
+				}
 
-				console.log("open view froim action res "+res);
-
-				// return {"response_action":"update","view":{"type":"modal","title":{"type":"plain_text","text":"Updated view"},"blocks":[{"type":"section","text":{"type":"plain_text","text":"I've changed and I'll never be the same. You must believe me."}}]}};
+				
 			} catch (error) {
 				console.log(error);
 			}
