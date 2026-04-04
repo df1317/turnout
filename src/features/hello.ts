@@ -2,6 +2,7 @@ import { slackApp } from "../index";
 
 const hello = async () => {
   slackApp.command("/hello", async ({ context, payload }) => {
+    console.log("/hello just got called from hello.ts!");
     if (!context?.respond) return;
 
     await context.respond({
