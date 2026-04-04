@@ -95,8 +95,7 @@ export default {
 				const client = context.client;
 
 				client.views.update({
-					view_id: payload.container.view_id,
-					hash: payload.view.hash,
+					view_id: payload.view.view_id,
 					view:{
 						type:"modal",
 						title:{
