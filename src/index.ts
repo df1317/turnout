@@ -25,13 +25,14 @@ export default {
 		});
 
 		app.command("/view", async ({ context, payload}) => {
-			console.log("whats context?",context);
-			console.log("whats payload?",payload);
+			console.log("whats context? " +JSON.stringify(context));
+			console.log("whats payload? ",+JSON.stringify(payload));
 		  try {
 
 			const client = context.client;
 
 		    const result = await client.views.open({
+		      trigger_id: payload.trigger_id,
 		      view: {
 		        type: "modal",
 		        title: {
