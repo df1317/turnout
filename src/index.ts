@@ -87,6 +87,9 @@ export default {
 
 		app.action("repeat", async ({payload, context})=>{
 			try {
+
+				console.log("payload "+JSON.stringify(payload));
+
 				const actions = payload.actions;
 				const checked: boolean = actions.selected_options.length > 0;
 				
