@@ -113,7 +113,12 @@ export default {
 				for(const block of blocks){
 					const block_id = block.block_id;
 					const element = block.element;
-					const action_id = element.action_id;
+					let action_id;
+					if(block.type === "input"){
+						action_id = element.action_id;
+					} else {
+						action_id = element[0].action_id;
+					}
 					console.log(`block_id: ${block_id}, element: ${element}, action_id: ${action_id}.`);
 					switch(action_id){
 						case 'name':
