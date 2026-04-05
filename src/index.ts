@@ -113,7 +113,7 @@ export default {
 					const block_id = block.block_id;
 					const element = block.element;
 					const action_id = element.action_id;
-
+					console.log(`block_id: ${block_id}, element: ${element}, action_id: ${action_id}.`);
 					switch(action_id){
 						case 'name':
 							name = state[block_id].name.value;
