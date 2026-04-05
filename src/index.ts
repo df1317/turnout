@@ -1,6 +1,13 @@
 import { SlackApp, SlackEdgeAppEnv } from 'slack-cloudflare-workers';
 import * as Utils from './Utils.ts';
 
+/*
+note: all time is in a unix timestamp unless from slack (then sometimes is yyyy-mm-dd)
+Database scema:
+	note: yes/maybe/no is a JSON array of the slack userIDs.
+	meeting (id INT, time INTEGER, name TEXT, description TEXT, yes TEXT, maybe TEXT, no TEXT)
+*/
+
 function getNewMeetingBlocks(withRepeat: boolean){
 	if(!withRepeat){
 		return `[{"type":"input","element":{"type":"plain_text_input","action_id":"name"},"label":{"type":"plain_text","text":"Name","emoji":true},"optional":false},{"type":"input","element":{"type":"datetimepicker","action_id":"time"},"label":{"type":"plain_text","text":"Time","emoji":true},"optional":false},{"type":"actions","elements":[{"type":"checkboxes","options":[{"text":{"type":"plain_text","text":":repeat: Repeat - once a week until given date","emoji":true},"value":"value-2"}],"action_id":"repeat"}]}]`;
@@ -133,6 +140,17 @@ export default {
 					}
 				}
 				console.log(`name: ${name}, time: ${time}, repeat: ${repeat}, untilwhen: ${untilwhen}`);
+				if(repeat && !untilwhen){
+					console.log("/newmeeting PARSING broke!");
+					return;
+				}
+				// meeting (id INT, time INTEGER, name TEXT, description TEXT, yes TEXT, maybe TEXT, no TEXT)
+				env.DB.prepare("INSERT INTO meeting VALUES (1234, ?, ?, '', '[]', '[]', '[]');")
+					.bind(time, name);
+
+				if(repeat){
+					// TODO: add repeat logic
+				}
 			} catch (error) {
 				console.log(error);
 			}
