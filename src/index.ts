@@ -88,14 +88,11 @@ export default {
 
 		app.viewSubmission("new_meeting", async (req)=>{
 			try {
-				console.log("new_meeting submission req "+JSON.stringify(req));
 				return {response_action: "clear"};
 			} catch (error) {
 				console.log(error);
 			}
 		}, async(req)=>{
-			//lazy worker
-			console.log("start laxry worker");
 			try {
 				console.log("LAZY WORKER new_meeting submission req "+JSON.stringify(req));
 
@@ -123,7 +120,7 @@ export default {
 							name = values[block_id].name.value;
 							break;
 						case 'time':
-							time = values[block_id].time.value;
+							time = values[block_id].time.selected_date_time;
 							break;
 						case 'repeat':
 							repeat = values[block_id].repeat.selected_options.length > 0;
