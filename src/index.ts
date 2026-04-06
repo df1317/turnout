@@ -145,8 +145,8 @@ export default {
 					return;
 				}
 				// meeting (id INT, time INTEGER, name TEXT, description TEXT, yes TEXT, maybe TEXT, no TEXT)
-				console.log("env"+JSON.stringify(process.env));
-				process.env.DB.prepare("INSERT INTO meeting VALUES (1234, ?, ?, '', '[]', '[]', '[]');")
+				console.log("env.${DB}"+JSON.stringify(env.sirsnap_prod) + " | does it exists? "+ env.sirsnap_prod?true:false);
+				env.sirsnap_prod.prepare("INSERT INTO meeting VALUES (1234, ?, ?, '', '[]', '[]', '[]');")
 					.bind(time, name)
 					.run();
 
