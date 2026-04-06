@@ -145,8 +145,8 @@ export default {
 					return;
 				}
 				// meeting (id INT, time INTEGER, name TEXT, description TEXT, yes TEXT, maybe TEXT, no TEXT)
-				console.log("env"+JSON.stringify(env));
-				env.DB.prepare("INSERT INTO meeting VALUES (1234, ?, ?, '', '[]', '[]', '[]');")
+				console.log("env"+JSON.stringify(process.env));
+				process.env.DB.prepare("INSERT INTO meeting VALUES (1234, ?, ?, '', '[]', '[]', '[]');")
 					.bind(time, name)
 					.run();
 
