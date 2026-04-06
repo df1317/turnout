@@ -2,6 +2,7 @@ import { SlackApp, SlackEdgeAppEnv } from "slack-cloudflare-workers";
 import * as features from "./features/index";
 import { createWebApp } from "./web/app";
 import { syncAllUsers } from "./web/lib/sync";
+import { checkPendingMeetings } from "./lib/announcements";
 
 export type Env = SlackEdgeAppEnv & {
 	DB: D1Database;
@@ -32,5 +33,6 @@ export default {
 
 	async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
 		ctx.waitUntil(syncAllUsers(env.DB, env.SLACK_ADMIN_TOKEN));
+		ctx.waitUntil(checkPendingMeetings(env));
 	},
 };

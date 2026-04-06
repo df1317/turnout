@@ -32,12 +32,12 @@ const attendance = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 		}
 	});
 
-	slackApp.action("attendance-checkin", async ({ context, action }) => {
-		await handleQuickCheckIn(context, action);
+	slackApp.action("attendance-checkin", async ({ context, payload }) => {
+		await handleQuickCheckIn(context, payload);
 	});
 
-	slackApp.action("attendance-checkout", async ({ context, action }) => {
-		await handleQuickCheckOut(context, action);
+	slackApp.action("attendance-checkout", async ({ context, payload }) => {
+		await handleQuickCheckOut(context, payload);
 	});
 };
 

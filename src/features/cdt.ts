@@ -180,7 +180,9 @@ const cdt = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 
   slackApp.action('cdt_open_edit', async ({ context, payload }) => {
     if (!await isAdmin(env.DB, context.client, context.userId)) return;
-    const cdtId = (payload as any).actions[0].value;
+    const cdtId = (payload as any).actions?.[0]?.value;
+    if (!cdtId) return;
+
     const cdtRow = await env.DB.prepare('SELECT id, name, channel_id FROM cdt WHERE id = ?')
       .bind(cdtId).first<{ id: string; name: string; channel_id: string }>();
 
@@ -197,7 +199,8 @@ const cdt = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 
   slackApp.action('cdt_delete', async ({ context, payload }) => {
     if (!await isAdmin(env.DB, context.client, context.userId)) return;
-    const cdtId = (payload as any).actions[0].value;
+    const cdtId = (payload as any).actions?.[0]?.value;
+    if (!cdtId) return;
 
     const cdtRow = await env.DB.prepare('SELECT id, name, handle FROM cdt WHERE id = ?')
       .bind(cdtId).first<{ id: string; name: string; handle: string }>();

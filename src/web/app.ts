@@ -226,8 +226,12 @@ export function createWebApp(env: Env) {
     const { name, description = '', scheduled_at, channel_id } = body;
     if (!name) return c.json({ error: 'Name is required' }, 400);
 
+    const now = Math.floor(Date.now() / 1000);
+    const twoWeeksInSeconds = 14 * 24 * 60 * 60;
+    const shouldAnnounceNow = scheduled_at <= now + twoWeeksInSeconds;
+
     let message_ts: string | null = null;
-    if (channel_id) {
+    if (channel_id && shouldAnnounceNow) {
       const botClient = new SlackAPIClient(c.env.SLACK_BOT_TOKEN);
       await botClient.conversations.join({ channel: channel_id }).catch(() => {});
       const blocks = buildAnnouncementBlocks(
@@ -335,9 +339,14 @@ export function createWebApp(env: Env) {
     const botClient = new SlackAPIClient(c.env.SLACK_BOT_TOKEN);
     const created: { id: number; scheduled_at: number; message_ts: string | null }[] = [];
 
+    const now = Math.floor(Date.now() / 1000);
+    const twoWeeksInSeconds = 14 * 24 * 60 * 60;
+
     for (const ts of dates) {
       let message_ts: string | null = null;
-      if (channel_id) {
+      const shouldAnnounceNow = ts <= now + twoWeeksInSeconds;
+      
+      if (channel_id && shouldAnnounceNow) {
         try {
           await botClient.conversations.join({ channel: channel_id });
         } catch {}

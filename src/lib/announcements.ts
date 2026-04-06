@@ -1,3 +1,6 @@
+import { SlackAPIClient } from 'slack-web-api-client';
+import type { Env } from '../index';
+
 export function buildAnnouncementBlocks(
   meeting: { id: number; name: string; description: string; scheduled_at: number },
   attendees: { yes: string[]; maybe: string[]; no: string[] },
@@ -78,4 +81,51 @@ export async function updateAnnouncement(
     text: `Meeting: ${meeting.name}`,
     blocks: buildAnnouncementBlocks(meeting, attendees),
   });
+}
+
+export async function checkPendingMeetings(env: Env) {
+  const now = Math.floor(Date.now() / 1000);
+  const twoWeeksInSeconds = 14 * 24 * 60 * 60;
+  const threshold = now + twoWeeksInSeconds;
+
+  // Find meetings that:
+  // - Have a channel_id set
+  // - Don't have a message_ts yet (haven't been announced)
+  // - Are scheduled to happen within the next 2 weeks
+  // - Haven't happened yet (scheduled_at > now)
+  // - Aren't cancelled
+  const pending = await env.DB.prepare(
+    `SELECT id, name, description, scheduled_at, channel_id 
+     FROM meeting 
+     WHERE channel_id IS NOT NULL 
+       AND message_ts IS NULL 
+       AND cancelled = 0 
+       AND scheduled_at > ?
+       AND scheduled_at <= ?`
+  ).bind(now, threshold).all<{ id: number; name: string; description: string; scheduled_at: number; channel_id: string }>();
+
+  if (!pending.results.length) return;
+
+  const botClient = new SlackAPIClient(env.SLACK_BOT_TOKEN);
+
+  for (const meeting of pending.results) {
+    try {
+      await botClient.conversations.join({ channel: meeting.channel_id }).catch(() => {});
+      
+      const blocks = buildAnnouncementBlocks(meeting, { yes: [], maybe: [], no: [] });
+      const posted = await botClient.chat.postMessage({
+        channel: meeting.channel_id,
+        text: `Meeting: ${meeting.name}`,
+        blocks,
+      }) as { ts?: string };
+
+      if (posted.ts) {
+        await env.DB.prepare(
+          'UPDATE meeting SET message_ts = ? WHERE id = ?'
+        ).bind(posted.ts, meeting.id).run();
+      }
+    } catch (err) {
+      console.error(`Failed to announce pending meeting ${meeting.id}:`, err);
+    }
+  }
 }
