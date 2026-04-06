@@ -8,6 +8,7 @@
 		"lib": ["es2024"],
 		/* Specify what JSX code is generated. */
 		"jsx": "react-jsx",
+		"jsxImportSource": "hono/jsx",
 
 		/* Specify what module code is generated. */
 		"module": "es2022",
@@ -39,5 +40,5 @@
 		"types": ["./worker-configuration.d.ts", "node"]
 	},
 	"exclude": ["test"],
-	"include": ["worker-configuration.d.ts", "src/**/*.ts"]
+	"include": ["worker-configuration.d.ts", "src/**/*.ts", "src/**/*.tsx"]
 }

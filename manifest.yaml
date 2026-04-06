@@ -22,8 +22,13 @@ features:
       usage_hint: create | edit <name> | list
       should_escape: false
 oauth_config:
+  redirect_urls:
+    - https://sirsnap.programming-aaaaaeyr6ul5biewy5byj6ykgq.workers.dev/oauth/callback
   scopes:
     user:
+      - identity.basic
+      - identity.avatar
+      - users:read
       - users.profile:write
       - users.profile:read
       - usergroups:write

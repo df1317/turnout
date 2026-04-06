@@ -1,11 +1,14 @@
 import { SlackApp, SlackEdgeAppEnv } from "slack-cloudflare-workers";
 import * as features from "./features/index";
+import { createWebApp } from "./web/app";
+import { syncAllUsers } from "./web/lib/sync";
 
 export type Env = SlackEdgeAppEnv & {
 	DB: D1Database;
 	SLACK_ADMIN_TOKEN: string;
 	SLACK_CLIENT_ID: string;
 	SLACK_CLIENT_SECRET: string;
+	HOST: string;
 };
 
 export default {
@@ -24,6 +27,10 @@ export default {
 			return await slackApp.run(request, ctx);
 		}
 
-		return new Response('Not found', { status: 404 });
+		return createWebApp(env).fetch(request, env, ctx);
+	},
+
+	async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+		ctx.waitUntil(syncAllUsers(env.DB, env.SLACK_ADMIN_TOKEN));
 	},
 };

@@ -24,7 +24,16 @@
 	 * - SLACK_BOT_TOKEN: Your Slack bot token (optional for some features)
 	 */
 	"vars": {
-		"NODE_ENV": "production"
+		"NODE_ENV": "production",
+		"HOST": "https://sirsnap.programming-aaaaaeyr6ul5biewy5byj6ykgq.workers.dev"
+	},
+	"triggers": {
+		"crons": ["0 6 * * *"]
+	},
+	"assets": {
+		"directory": "./web/dist",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application"
 	}
 	/**
 	 * Smart Placement
