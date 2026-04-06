@@ -1,0 +1,28 @@
+name: Biome
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  check:
+    name: Check Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          
+      # Alternative: you can use biomejs/setup-biome@v2 instead of installing all node modules,
+      # but running via npx ensures it uses the exact version specified in your project.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting & linting with Biome
+        run: npx @biomejs/biome ci .
