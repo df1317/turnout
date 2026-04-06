@@ -1,7 +1,7 @@
 import { SlackApp, SlackEdgeAppEnv } from "slack-cloudflare-workers";
 import * as features from "./features/index";
 
-export type Env = SlackEdgeAppEnv & { DB: D1Database };
+export type Env = SlackEdgeAppEnv & { DB: D1Database; SLACK_ADMIN_TOKEN: string };
 
 export default {
 	async fetch(

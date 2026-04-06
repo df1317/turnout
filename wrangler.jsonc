@@ -1,5 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
+	"account_id": "7a694580d290a26f0bdf97fec4710066",
 	"name": "sirsnap",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-04-03",

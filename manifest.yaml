@@ -1,46 +1,44 @@
 display_information:
   name: Sirsnap
   description: fill out your attendance!
-  background_color: '#7e00de'
-
+  background_color: "#7e00de"
 features:
   bot_user:
     display_name: Sirsnap
     always_online: true
   slash_commands:
-    - command: /hello
-      description: Get a friendly greeting from the bot
+    - command: /newmeeting
+      url: https://sirsnap.programming-aaaaaeyr6ul5biewy5byj6ykgq.workers.dev
+      description: Create a new meeting (admin only)
       should_escape: false
-      url: https://sirsnap.bore.dunkirk.sh/slack
-    - command: /attendance
-      description: Track your attendance - check in, check out, view status
+    - command: /setrole
+      url: https://sirsnap.programming-aaaaaeyr6ul5biewy5byj6ykgq.workers.dev
+      description: Set a user's role (admin only)
+      usage_hint: "[@user] [student|parent|alumni|mentor]"
       should_escape: false
-      url: https://sirsnap.bore.dunkirk.sh/slack
-      usage_hint: '[in|out|status|help]'
-
+    - command: /cdt
+      url: https://sirsnap.programming-aaaaaeyr6ul5biewy5byj6ykgq.workers.dev
+      description: Manage Component Design Teams (admin only)
+      usage_hint: create | edit <name> | list
+      should_escape: false
 oauth_config:
   scopes:
+    user:
+      - users.profile:write
+      - users.profile:read
+      - usergroups:write
     bot:
-      - app_mentions:read
-      - channels:history
       - chat:write
+      - channels:join
       - commands
-      - im:history
-      - im:read
-      - im:write
+      - usergroups:read
+      - usergroups:write
       - users:read
-
-event_subscriptions:
-  request_url: https://sirsnap.bore.dunkirk.sh/slack
-  bot_events:
-    - app_mention
-    - message.im
-
-interactivity:
-  is_enabled: true
-  request_url: https://sirsnap.bore.dunkirk.sh/slack
-
+  pkce_enabled: false
 settings:
+  interactivity:
+    is_enabled: true
+    request_url: https://sirsnap.programming-aaaaaeyr6ul5biewy5byj6ykgq.workers.dev
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false
