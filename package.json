@@ -12,7 +12,9 @@
 		"start": "bun run dev",
 		"test": "vitest",
 		"cf-typegen": "wrangler types",
-		"build:web": "bun run --cwd web build"
+		"build:web": "bun run --cwd web build",
+		"check": "bunx @biomejs/biome check",
+		"format": "bunx @biomejs/biome format --write ."
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.12.4",
