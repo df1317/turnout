@@ -371,8 +371,14 @@ export function Dashboard({ session }: { session: Session }) {
 			</Layout>
 		);
 
+	const now = Math.floor(Date.now() / 1000);
+	const thirtyDaysFromNow = now + 30 * 24 * 60 * 60;
+	
 	const upcoming = meetings
-		.filter((m) => (m.end_time || m.scheduled_at) > Math.floor(Date.now() / 1000))
+		.filter((m) => {
+			const time = m.end_time || m.scheduled_at;
+			return time > now && time < thirtyDaysFromNow;
+		})
 		.sort((a, b) => a.scheduled_at - b.scheduled_at);
 
 	const featured = upcoming[0];

@@ -96,7 +96,7 @@ export function createWebApp(env: Env) {
        FROM meeting m
        LEFT JOIN attendance a ON a.meeting_id = m.id AND a.user_id = ?
        WHERE (m.scheduled_at > ? OR (m.end_time IS NOT NULL AND m.end_time > ?)) AND m.cancelled = 0
-       ORDER BY m.scheduled_at LIMIT 10`,
+       ORDER BY m.scheduled_at`
 		)
 			.bind(session.user_id, now, now)
 			.all();
