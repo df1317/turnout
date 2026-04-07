@@ -246,6 +246,33 @@ export function createWebApp(_env: Env) {
 		});
 	});
 
+	api.get("/meetings/past", requireSession(), async (c) => {
+		// biome-ignore lint/style/noNonNullAssertion: guaranteed by requireSession
+		const session = c.get("session")!;
+		const now = Math.floor(Date.now() / 1000);
+		const rows = await c.env.DB.prepare(
+			`SELECT m.id, m.name, m.description, m.scheduled_at, m.end_time, a.status AS my_status, a.note AS my_note,
+              (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'yes') AS yes_count,
+              (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'maybe') AS maybe_count,
+              (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'no') AS no_count
+       FROM meeting m
+       LEFT JOIN attendance a ON a.meeting_id = m.id AND a.user_id = ?
+       WHERE (m.end_time IS NOT NULL AND m.end_time <= ?) OR (m.end_time IS NULL AND m.scheduled_at + (3 * 60 * 60) <= ?) AND m.cancelled = 0
+       ORDER BY m.scheduled_at DESC LIMIT 20`,
+		)
+			.bind(session.user_id, now, now)
+			.all();
+
+		return c.json(
+			rows.results.map((r: Record<string, unknown>) => ({
+				...r,
+				yes_count: Number(r.yes_count || 0),
+				maybe_count: Number(r.maybe_count || 0),
+				no_count: Number(r.no_count || 0),
+			})),
+		);
+	});
+
 	api.get("/meetings/:id", requireSession(), async (c) => {
 		// biome-ignore lint/style/noNonNullAssertion: requireSession() middleware guarantees session exists
 		const session = c.get("session")!;
@@ -273,33 +300,6 @@ export function createWebApp(_env: Env) {
 			maybe_count: Number(row.maybe_count || 0),
 			no_count: Number(row.no_count || 0),
 		});
-	});
-
-	api.get("/meetings/past", requireSession(), async (c) => {
-		// biome-ignore lint/style/noNonNullAssertion: guaranteed by requireSession
-		const session = c.get("session")!;
-		const now = Math.floor(Date.now() / 1000);
-		const rows = await c.env.DB.prepare(
-			`SELECT m.id, m.name, m.description, m.scheduled_at, m.end_time, a.status AS my_status, a.note AS my_note,
-              (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'yes') AS yes_count,
-              (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'maybe') AS maybe_count,
-              (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'no') AS no_count
-       FROM meeting m
-       LEFT JOIN attendance a ON a.meeting_id = m.id AND a.user_id = ?
-       WHERE (m.end_time IS NOT NULL AND m.end_time <= ?) OR (m.end_time IS NULL AND m.scheduled_at + (3 * 60 * 60) <= ?) AND m.cancelled = 0
-       ORDER BY m.scheduled_at DESC LIMIT 20`,
-		)
-			.bind(session.user_id, now, now)
-			.all();
-
-		return c.json(
-			rows.results.map((r: Record<string, unknown>) => ({
-				...r,
-				yes_count: Number(r.yes_count || 0),
-				maybe_count: Number(r.maybe_count || 0),
-				no_count: Number(r.no_count || 0),
-			})),
-		);
 	});
 
 	api.post("/rsvp/:meetingId/:token", async (c) => {

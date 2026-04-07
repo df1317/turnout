@@ -673,12 +673,19 @@ function AdminMeetingsView() {
 				accessorKey: "name",
 				header: "Name",
 				cell: ({ row }) => (
-					<div className="flex items-center gap-2">
-						<span className="font-medium">{row.original.name}</span>
-						{row.original.series_id && (
-							<Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-								Series
-							</Badge>
+					<div className="flex flex-col">
+						<div className="flex items-center gap-2">
+							<span className="font-medium">{row.original.name}</span>
+							{row.original.series_id && (
+								<Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+									Series
+								</Badge>
+							)}
+						</div>
+						{row.original.description && (
+							<span className="max-w-[200px] truncate text-muted-foreground text-xs">
+								{row.original.description}
+							</span>
 						)}
 					</div>
 				),
