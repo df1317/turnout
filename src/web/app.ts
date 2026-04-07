@@ -864,5 +864,10 @@ export function createWebApp(env: Env) {
 
 	app.route("/api", api);
 
+	// SPA Fallback for any unmatched non-API routes
+	app.get("*", async (c) => {
+		return c.env.ASSETS.fetch(new Request(new URL("/", c.req.url)));
+	});
+
 	return app;
 }
