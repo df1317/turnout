@@ -154,6 +154,7 @@ function AdminCdtsView() {
 
 	const [editName, setEditName] = useState("");
 	const [editChannelId, setEditChannelId] = useState("");
+	const [editMembers, setEditMembers] = useState<User[]>([]);
 	const [saving, setSaving] = useState(false);
 
 	useEffect(() => {
@@ -193,9 +194,17 @@ function AdminCdtsView() {
 		setEditOpen(true);
 		setEditName(cdt.name);
 		setEditChannelId(cdt.channel_id ?? "");
+		setEditMembers([]);
 		try {
 			const detail = await api.getCdt(cdt.id);
 			setEditDetail(detail);
+			setEditMembers(detail.members.map(m => ({
+				...m,
+				role: null,
+				is_admin: false,
+				cdt_id: cdt.id,
+				cdt_name: cdt.name,
+			} as User)));
 		} finally {
 			setEditLoading(false);
 		}
@@ -208,6 +217,7 @@ function AdminCdtsView() {
 			await api.updateCdt(editDetail.id, {
 				name: editName.trim() || undefined,
 				channel_id: editChannelId || undefined,
+				members: editMembers.map(m => m.user_id),
 			});
 			await refreshCdts();
 			setEditOpen(false);
@@ -215,22 +225,6 @@ function AdminCdtsView() {
 		} finally {
 			setSaving(false);
 		}
-	};
-
-	const handleRemoveMember = async (userId: string) => {
-		if (!editDetail) return;
-		await api.setUserCdt(userId, null);
-		const refreshed = await api.getCdt(editDetail.id);
-		setEditDetail(refreshed);
-		await refreshCdts();
-	};
-
-	const handleAddMember = async (user: User) => {
-		if (!editDetail) return;
-		await api.setUserCdt(user.user_id, editDetail.id);
-		const refreshed = await api.getCdt(editDetail.id);
-		setEditDetail(refreshed);
-		await refreshCdts();
 	};
 
 	const handleDelete = async (id: string) => {
@@ -355,6 +349,7 @@ function AdminCdtsView() {
 							</label>
 							<UserPicker
 								selectedIds={newMembers.map((m) => m.user_id)}
+								selectedUsers={newMembers}
 								onToggle={(u, isSelected) => {
 									if (isSelected) {
 										setNewMembers([...newMembers, u]);
@@ -422,26 +417,21 @@ function AdminCdtsView() {
 							<div className="space-y-2">
 								<div className="flex items-center justify-between">
 									<p className="text-xs font-medium">
-										Members ({editDetail.members.length})
+										Members ({editMembers.length})
 									</p>
 								</div>
 								<UserPicker
-									selectedIds={editDetail.members.map((m) => m.user_id)}
+									selectedIds={editMembers.map((m) => m.user_id)}
+									selectedUsers={editMembers}
 									onToggle={(u, isSelected) => {
 										if (isSelected) {
-											handleAddMember(u);
+											setEditMembers([...editMembers, u]);
 										} else {
-											handleRemoveMember(u.user_id);
+											setEditMembers(editMembers.filter(m => m.user_id !== u.user_id));
 										}
 									}}
-									onClear={async () => {
-										if (!editDetail) return;
-										const idsToRemove = editDetail.members.map(m => m.user_id);
-										for (const id of idsToRemove) {
-											await handleRemoveMember(id);
-										}
-									}}
-									filter={(u) => u.cdt_id === null || u.cdt_id === ""}
+									onClear={() => setEditMembers([])}
+									filter={(u) => u.cdt_id === null || u.cdt_id === "" || editDetail.members.some(m => m.user_id === u.user_id)}
 								/>
 							</div>
 						</div>

@@ -9,12 +9,14 @@ import { cn } from "../lib/utils";
 
 export function UserPicker({
 	selectedIds = [],
+	selectedUsers = [],
 	onToggle,
 	onClear,
 	filter,
 	className,
 }: {
 	selectedIds?: string[];
+	selectedUsers?: User[];
 	onToggle: (user: User, isSelected: boolean) => void;
 	onClear?: () => void;
 	filter?: (user: User) => boolean;
@@ -26,22 +28,32 @@ export function UserPicker({
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
-		if (open && users.length === 0) {
+		if (users.length === 0) {
 			api.getUsers().then(setUsers);
 		}
-	}, [open, users.length]);
+	}, [users.length]);
 
 	useEffect(() => {
 		if (open && inputRef.current) inputRef.current.focus();
 	}, [open]);
 
-	const filtered = users.filter(
-		(u) =>
-			(!filter || filter(u)) &&
-			u.name.toLowerCase().includes(query.toLowerCase()),
-	);
+	const filtered = users
+		.filter(
+			(u) =>
+				(!filter || filter(u)) &&
+				u.name.toLowerCase().includes(query.toLowerCase()),
+		)
+		.sort((a, b) => {
+			const aSelected = selectedIds.includes(a.user_id);
+			const bSelected = selectedIds.includes(b.user_id);
+			if (aSelected && !bSelected) return -1;
+			if (!aSelected && bSelected) return 1;
+			return a.name.localeCompare(b.name);
+		});
 	
-	const selectedUsers = users.filter(u => selectedIds.includes(u.user_id));
+	const displayUsers = selectedUsers.length > 0 
+		? selectedUsers 
+		: users.filter(u => selectedIds.includes(u.user_id));
 
 	const toggleUser = (user: User) => {
 		const isSelected = selectedIds.includes(user.user_id);
@@ -59,10 +71,10 @@ export function UserPicker({
 						className,
 					)}
 				>
-					{selectedUsers.length > 0 ? (
+					{displayUsers.length > 0 ? (
 						<div className="flex flex-wrap items-center gap-1.5 w-full pr-8 relative">
 							<div className="flex -space-x-1.5 overflow-hidden mr-1">
-								{selectedUsers.slice(0, 3).map((u) => (
+								{displayUsers.slice(0, 3).map((u) => (
 									<Avatar key={u.user_id} className="inline-block size-5 ring-1 ring-background">
 										<AvatarImage src={u.avatar_url} />
 										<AvatarFallback className="text-[8px]">{u.name[0]}</AvatarFallback>
@@ -70,11 +82,11 @@ export function UserPicker({
 								))}
 							</div>
 							<span className="text-xs truncate max-w-[120px]">
-								{selectedUsers.slice(0, 2).map((u) => u.name).join(", ")}
+								{displayUsers.slice(0, 2).map((u) => u.name).join(", ")}
 							</span>
-							{selectedUsers.length > 2 && (
+							{displayUsers.length > 2 && (
 								<span className="text-xs text-muted-foreground whitespace-nowrap">
-									+{selectedUsers.length - 2} more
+									+{displayUsers.length - 2} more
 								</span>
 							)}
 							{onClear && (

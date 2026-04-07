@@ -2,8 +2,7 @@ import { SlackApp, SlackEdgeAppEnv } from "slack-cloudflare-workers";
 import { SlackAPIClient } from "slack-web-api-client";
 import type { Env } from "../index";
 import { isAdmin, setProfile } from "../lib/users";
-
-const CDT_FIELD_ID = "Xf040HCJKNJZ";
+import { CDT_FIELD_ID, deleteSlackUsergroup } from "../lib/slack-cdt";
 
 function slugify(name: string): string {
 	return name
@@ -257,29 +256,8 @@ const cdt = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 
 		const adminClient = new SlackAPIClient(env.SLACK_ADMIN_TOKEN);
 
-		const renameWithRetry = async () => {
-			for (let i = 0; i < 5; i++) {
-				const suffix = Math.random().toString(36).slice(2, 7);
-				try {
-					await adminClient.usergroups.update({
-						usergroup: cdtId,
-						name: `${cdtRow.name} [deleted-${suffix}]`,
-						handle: `${cdtRow.handle}-${suffix}`,
-					});
-					await adminClient.usergroups.disable({ usergroup: cdtId });
-					return;
-				} catch (err: any) {
-					if (err?.error !== "name_already_exists") {
-						console.warn("cdt_delete: usergroups.update skipped:", err.message);
-						return;
-					}
-				}
-			}
-			console.warn("cdt_delete: usergroups.update failed after 5 retries");
-		};
-
 		await Promise.all([
-			renameWithRetry(),
+			deleteSlackUsergroup(adminClient, cdtId, cdtRow.name, cdtRow.handle),
 			...members.results.map(({ user_id }) =>
 				setProfile(adminClient, user_id, { [CDT_FIELD_ID]: "" }),
 			),
@@ -289,8 +267,10 @@ const cdt = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 
 		const [freshCdts] = await Promise.all([
 			env.DB.prepare(`
-        SELECT c.id, c.name, c.handle, COUNT(m.user_id) as member_count
-        FROM cdt c LEFT JOIN cdt_member m ON m.cdt_id = c.id
+        SELECT c.id, c.name, c.handle, COUNT(u.user_id) as member_count
+        FROM cdt c 
+        LEFT JOIN cdt_member m ON m.cdt_id = c.id
+        LEFT JOIN slack_user u ON u.user_id = m.user_id
         GROUP BY c.id ORDER BY c.name
       `).all<{
 				id: string;

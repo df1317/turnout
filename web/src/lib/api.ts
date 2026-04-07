@@ -152,7 +152,7 @@ export const api = {
 	},
 	async updateCdt(
 		id: string,
-		data: { name?: string; channel_id?: string },
+		data: { name?: string; channel_id?: string; members?: string[] },
 	): Promise<void> {
 		await apiFetch(`/api/admin/cdts/${id}`, {
 			method: "PUT",

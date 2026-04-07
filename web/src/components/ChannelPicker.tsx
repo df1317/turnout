@@ -28,7 +28,7 @@ export function ChannelPicker({
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
-		if (open && channels.length === 0) {
+		if (channels.length === 0) {
 			api.getSlackChannels().then((chs) => {
 				setChannels(chs);
 				if (value) {
@@ -36,8 +36,11 @@ export function ChannelPicker({
 					if (found) setSelected(found);
 				}
 			});
+		} else if (value && !selected) {
+			const found = channels.find((c) => c.id === value);
+			if (found) setSelected(found);
 		}
-	}, [open, channels.length, value]);
+	}, [channels.length, value, selected]);
 
 	useEffect(() => {
 		if (open && inputRef.current) inputRef.current.focus();
