@@ -22,7 +22,12 @@ export async function syncAllUsers(
 			if (m.deleted || m.is_bot || m.id === "USLACKBOT") continue;
 			users.push({
 				id: m.id,
-				name: m.profile?.display_name || m.real_name || m.name || "",
+				name:
+					m.real_name ||
+					m.profile?.real_name ||
+					m.profile?.display_name ||
+					m.name ||
+					"",
 				avatar: m.profile?.image_72 ?? "",
 				is_admin: m.is_admin ?? false,
 			});

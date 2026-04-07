@@ -15,6 +15,7 @@ export type User = {
 	is_admin: boolean;
 	cdt_id: string | null;
 	cdt_name: string | null;
+	meetings_attended?: number;
 };
 
 export type Meeting = {

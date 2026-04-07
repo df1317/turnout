@@ -79,18 +79,17 @@ teamsnap.get("/sync", requireAdmin(), async (c) => {
 			"SELECT user_id, name, role FROM slack_user",
 		).all();
 
+		const matchedMembers: {
+			id: number;
+			name: string;
+			matched_user_id: string;
+			manual: boolean;
+		}[] = [];
 		const tsToSlackUserMap = new Map<number, string>();
 		const unmatchedMembers: {
 			id: number;
 			name: string;
 			suggestedMatches: { user_id: string; name: string }[];
-		}[] = [];
-		const matchedMembers: {
-			id: number;
-			tsName: string;
-			slackUserId: string;
-			slackName: string;
-			manual: boolean;
 		}[] = [];
 
 		for (const member of members) {
@@ -101,14 +100,10 @@ teamsnap.get("/sync", requireAdmin(), async (c) => {
 			// First check manual mappings
 			if (manualMappings[member.id] && manualMappings[member.id] !== "ignore") {
 				tsToSlackUserMap.set(member.id, manualMappings[member.id]);
-				const slackUser = slackUsers.results.find(
-					(u) => u.user_id === manualMappings[member.id],
-				);
 				matchedMembers.push({
 					id: member.id,
-					tsName,
-					slackUserId: manualMappings[member.id],
-					slackName: (slackUser?.name as string) || "Unknown",
+					name: tsName,
+					matched_user_id: manualMappings[member.id],
 					manual: true,
 				});
 				continue;
@@ -132,9 +127,8 @@ teamsnap.get("/sync", requireAdmin(), async (c) => {
 				tsToSlackUserMap.set(member.id, match.user_id as string);
 				matchedMembers.push({
 					id: member.id,
-					tsName,
-					slackUserId: match.user_id as string,
-					slackName: match.name as string,
+					name: tsName,
+					matched_user_id: match.user_id as string,
 					manual: false,
 				});
 			} else {
@@ -142,9 +136,14 @@ teamsnap.get("/sync", requireAdmin(), async (c) => {
 				const suggestions = slackUsers.results
 					.filter((u) => {
 						const uName = (u.name as string).toLowerCase();
+						const lastWord = uName.split(" ").pop();
+
 						return (
 							(firstNameLower && uName.includes(firstNameLower)) ||
-							(lastNameLower && uName.includes(lastNameLower))
+							(lastNameLower && uName.includes(lastNameLower)) ||
+							(lastNameLower &&
+								lastWord &&
+								lastWord.startsWith(lastNameLower.substring(0, 3)))
 						);
 					})
 					.map((u) => ({
@@ -194,6 +193,7 @@ teamsnap.get("/sync", requireAdmin(), async (c) => {
 				c.env.DB.prepare(`
           INSERT INTO meeting (name, scheduled_at, channel_id, message_ts)
           VALUES (?, ?, 'teamsnap-import', 'none')
+		  ON CONFLICT(channel_id, scheduled_at) DO NOTHING
         `).bind(name, scheduledAt),
 			);
 		}
@@ -247,21 +247,34 @@ teamsnap.get("/sync", requireAdmin(), async (c) => {
 			await c.env.DB.batch(statements);
 		}
 
+		const stats = {
+			timeFrameDays,
+			eventsFound: events.length,
+			membersFound: members.length,
+			matchedUsers: tsToSlackUserMap.size,
+			unmatchedUsers: unmatchedMembers.length,
+			attendanceRecordsInserted: attendanceInserted,
+			lastSyncTime: Date.now(),
+		};
+
+		await c.env.DB.prepare(
+			"INSERT INTO kv_store (key, value) VALUES ('teamsnap_last_sync_stats', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+		)
+			.bind(JSON.stringify(stats))
+			.run();
+
 		return c.json({
 			success: true,
 			message: "Imported past events",
-			stats: {
-				timeFrameDays,
-				eventsFound: events.length,
-				membersFound: members.length,
-				matchedUsers: tsToSlackUserMap.size,
-				attendanceRecordsInserted: attendanceInserted,
-			},
+			stats,
 			unmatchedMembers,
-			slackUsers: slackUsers.results.map((u) => ({
-				user_id: u.user_id,
-				name: u.name,
-			})),
+			matchedMembers,
+			slackUsers: slackUsers.results
+				.map((u) => ({
+					user_id: u.user_id,
+					name: u.name,
+				}))
+				.sort((a, b) => (a.name as string).localeCompare(b.name as string)),
 		});
 		// biome-ignore lint/suspicious/noExplicitAny: D1 / fetch errors
 	} catch (error: any) {

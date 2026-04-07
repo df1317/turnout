@@ -30,8 +30,9 @@ export async function getUser(
 	// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
 	const u = result.user as any;
 	const name =
-		u.profile?.display_name_normalized ||
+		u.real_name ||
 		u.profile?.real_name ||
+		u.profile?.display_name_normalized ||
 		u.name ||
 		userId;
 	const avatar_url = u.profile?.image_72 ?? "";

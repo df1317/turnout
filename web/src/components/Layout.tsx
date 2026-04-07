@@ -52,7 +52,6 @@ export function Layout({
 							{navLink("/team", "Team")}
 							{navLink("/cdts", "CDTs")}
 							{session?.is_admin && navLink("/admin", "Admin")}
-							{session?.is_admin && navLink("/teamsnap", "TeamSnap")}
 						</nav>
 					</div>
 

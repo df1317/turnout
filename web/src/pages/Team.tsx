@@ -92,6 +92,14 @@ const columns: ColumnDef<User, unknown>[] = [
 			);
 		},
 	},
+	{
+		accessorKey: "meetings_attended",
+		header: "Meetings",
+		cell: ({ row }) => {
+			const count = row.original.meetings_attended ?? 0;
+			return <span>{count}</span>;
+		},
+	},
 ];
 
 function TeamListView({

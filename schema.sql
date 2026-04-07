@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS meeting (
   end_time     INTEGER,           -- unix timestamp (optional for backwards compatibility)
   channel_id   TEXT    NOT NULL,  -- where announcement was posted
   message_ts   TEXT    NOT NULL,  -- Slack message ts for chat.update
-  cancelled    INTEGER NOT NULL DEFAULT 0
+  cancelled    INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(channel_id, scheduled_at)
 );
 
 -- Cached Slack user profiles (refreshed every 7 days)
