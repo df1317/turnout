@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChannelPicker } from "../components/ChannelPicker";
 import { Layout } from "../components/Layout";
+import { TeamSnapImport } from "../components/TeamSnapImport";
 import { Button } from "../components/ui/button";
 import {
 	Card,
@@ -245,6 +246,7 @@ export function AdminPage({ session }: { session: Session }) {
 				</div>
 
 				<div className="grid gap-6 md:grid-cols-2">
+					<TeamSnapImport />
 					<Card>
 						<CardHeader>
 							<CardTitle className="text-base">System Statistics</CardTitle>

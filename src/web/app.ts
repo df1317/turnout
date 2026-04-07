@@ -19,6 +19,7 @@ import {
 	sessionMiddleware,
 } from "./middleware/session";
 import authRoutes from "./routes/auth";
+import teamsnapRoutes from "./routes/teamsnap";
 
 type Variables = { session: Session | null };
 
@@ -33,6 +34,10 @@ export function createWebApp(_env: Env) {
 
 	// Server-side auth (must stay here — sets httpOnly cookies)
 	app.route("/api/auth", authRoutes);
+
+	// Add session middleware to teamsnap routes, then mount them
+	app.use("/api/teamsnap/*", sessionMiddleware);
+	app.route("/api/teamsnap", teamsnapRoutes);
 
 	// Public calendar feed
 	app.get("/api/calendar/:filename", async (c) => {

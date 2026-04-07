@@ -298,6 +298,11 @@ export const api = {
 		});
 	},
 
+	// TeamSnap API
+	async fetch(path: string, init?: RequestInit): Promise<Response> {
+		return apiFetch(path, init);
+	},
+
 	// Slack channels
 	async getSlackChannels(): Promise<
 		{ id: string; name: string; is_private: boolean }[]
