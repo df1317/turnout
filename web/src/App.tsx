@@ -8,6 +8,7 @@ import { LoginPage } from "./pages/Login";
 import { MeetingsPage } from "./pages/Meetings";
 import { RsvpPage } from "./pages/Rsvp";
 import { TeamPage } from "./pages/Team";
+import { TeamSnapPage } from "./pages/TeamSnap";
 
 export default function App() {
 	const [session, setSession] = useState<Session | null | "loading">("loading");
@@ -189,6 +190,7 @@ export default function App() {
 					element={<RsvpPage session={session} />}
 				/>
 				<Route path="/admin/*" element={<AdminPage session={session} />} />
+				<Route path="/teamsnap" element={<TeamSnapPage session={session} />} />
 
 				<Route path="/" element={<Dashboard session={session} />} />
 				<Route path="*" element={<Navigate to="/" replace />} />

@@ -26,6 +26,8 @@ teamsnap.get("/sync", requireAdmin(), async (c) => {
 	cutoffTime.setDate(cutoffTime.getDate() - timeFrameDays);
 	const cutoffMs = cutoffTime.getTime();
 
+	const isDryRun = c.req.query("dryRun") === "true";
+
 	// Parse manual mappings passed from UI
 	const manualMappingsStr = c.req.query("mappings");
 	const manualMappings: Record<string, string> = manualMappingsStr
@@ -78,15 +80,37 @@ teamsnap.get("/sync", requireAdmin(), async (c) => {
 		).all();
 
 		const tsToSlackUserMap = new Map<number, string>();
-		const unmatchedMembers: { id: number; name: string }[] = [];
+		const unmatchedMembers: {
+			id: number;
+			name: string;
+			suggestedMatches: { user_id: string; name: string }[];
+		}[] = [];
+		const matchedMembers: {
+			id: number;
+			tsName: string;
+			slackUserId: string;
+			slackName: string;
+			manual: boolean;
+		}[] = [];
 
 		for (const member of members) {
-			const tsName =
-				`${member.first_name || ""} ${member.last_name || ""}`.trim();
+			const firstName = (member.first_name || "").trim();
+			const lastName = (member.last_name || "").trim();
+			const tsName = `${firstName} ${lastName}`.trim();
 
 			// First check manual mappings
 			if (manualMappings[member.id] && manualMappings[member.id] !== "ignore") {
 				tsToSlackUserMap.set(member.id, manualMappings[member.id]);
+				const slackUser = slackUsers.results.find(
+					(u) => u.user_id === manualMappings[member.id],
+				);
+				matchedMembers.push({
+					id: member.id,
+					tsName,
+					slackUserId: manualMappings[member.id],
+					slackName: (slackUser?.name as string) || "Unknown",
+					manual: true,
+				});
 				continue;
 			}
 			if (manualMappings[member.id] === "ignore") {
@@ -95,6 +119,9 @@ teamsnap.get("/sync", requireAdmin(), async (c) => {
 
 			// Then try auto-matching
 			const tsNameLower = tsName.toLowerCase();
+			const firstNameLower = firstName.toLowerCase();
+			const lastNameLower = lastName.toLowerCase();
+
 			const match = slackUsers.results.find(
 				(u) =>
 					(u.name as string).toLowerCase() === tsNameLower ||
@@ -103,12 +130,56 @@ teamsnap.get("/sync", requireAdmin(), async (c) => {
 
 			if (match) {
 				tsToSlackUserMap.set(member.id, match.user_id as string);
+				matchedMembers.push({
+					id: member.id,
+					tsName,
+					slackUserId: match.user_id as string,
+					slackName: match.name as string,
+					manual: false,
+				});
 			} else {
+				// Find partial matches for suggestions
+				const suggestions = slackUsers.results
+					.filter((u) => {
+						const uName = (u.name as string).toLowerCase();
+						return (
+							(firstNameLower && uName.includes(firstNameLower)) ||
+							(lastNameLower && uName.includes(lastNameLower))
+						);
+					})
+					.map((u) => ({
+						user_id: u.user_id as string,
+						name: u.name as string,
+					}))
+					.slice(0, 5); // Limit to top 5 suggestions
+
 				unmatchedMembers.push({
 					id: member.id,
 					name: tsName,
+					suggestedMatches: suggestions,
 				});
 			}
+		}
+
+		if (isDryRun) {
+			return c.json({
+				success: true,
+				message: "Dry run complete",
+				stats: {
+					timeFrameDays,
+					eventsFound: events.length,
+					membersFound: members.length,
+					matchedUsers: tsToSlackUserMap.size,
+				},
+				matchedMembers,
+				unmatchedMembers,
+				slackUsers: slackUsers.results
+					.map((u) => ({
+						user_id: u.user_id as string,
+						name: u.name as string,
+					}))
+					.sort((a, b) => a.name.localeCompare(b.name)),
+			});
 		}
 
 		// 4. Upsert Meetings
