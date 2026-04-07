@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
 	api,
 	type Session,
@@ -743,112 +743,117 @@ function AdminMeetingsView() {
 		setMeetings((prev) => prev.filter((x) => x.id !== id));
 	};
 
-	const columns: ColumnDef<AdminMeeting, unknown>[] = [
-		{
-			accessorKey: "name",
-			header: "Name",
-			cell: ({ row }) => (
-				<div className="flex items-center gap-2">
-					<span className="font-medium">{row.original.name}</span>
-					{row.original.series_id && (
-						<Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-							Series
-						</Badge>
-					)}
-				</div>
-			),
-		},
-		{
-			id: "date",
-			header: "Date",
-			accessorFn: (row) => row.scheduled_at,
-			cell: ({ row }) => {
-				const m = row.original;
-				let timeStr = formatDate(m.scheduled_at);
-				if (m.end_time) {
-					const endDt = new Date(m.end_time * 1000);
-					timeStr += ` - ${endDt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
-				}
-				return (
-					<span className="text-muted-foreground whitespace-nowrap">
-						{timeStr}
-					</span>
-				);
-			},
-		},
-		{
-			id: "status",
-			header: "Status",
-			accessorFn: (row) => (row.cancelled ? 0 : row.scheduled_at),
-			cell: ({ row }) => {
-				const m = row.original;
-				if (m.cancelled) return <Badge variant="destructive">Cancelled</Badge>;
-				if (m.scheduled_at < now)
-					return <Badge variant="secondary">Past</Badge>;
-				return <Badge variant="outline">Upcoming</Badge>;
-			},
-		},
-		{
-			id: "rsvp",
-			header: "RSVP",
-			cell: ({ row }) => {
-				const m = row.original;
-				return (
-					<div className="flex items-center gap-2 text-xs text-muted-foreground">
-						<span className="text-emerald-600 flex items-center gap-0.5">
-							<Check className="size-3" />
-							{m.yes_count}
-						</span>
-						<span className="text-amber-600 flex items-center gap-0.5">
-							<HelpCircle className="size-3" />
-							{m.maybe_count}
-						</span>
-						<span className="text-red-600 flex items-center gap-0.5">
-							<X className="size-3" />
-							{m.no_count}
-						</span>
+	// Use useMemo to prevent recreating the columns array on every render
+	// which prevents the DataTable and underlying images from re-rendering
+	const columns = useMemo<ColumnDef<AdminMeeting, unknown>[]>(
+		() => [
+			{
+				accessorKey: "name",
+				header: "Name",
+				cell: ({ row }) => (
+					<div className="flex items-center gap-2">
+						<span className="font-medium">{row.original.name}</span>
+						{row.original.series_id && (
+							<Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+								Series
+							</Badge>
+						)}
 					</div>
-				);
+				),
 			},
-		},
-		{
-			id: "actions",
-			header: "",
-			cell: ({ row }) => {
-				const m = row.original;
-				return (
-					<div
-						className="flex items-center gap-1"
-						onClick={(e) => e.stopPropagation()}
-					>
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							onClick={() => setEditMeeting(m)}
-						>
-							<Pencil className="size-3.5" />
-						</Button>
-						<Button
-							variant="ghost"
-							size="sm"
-							className="h-6 px-2 text-xs"
-							onClick={() => handleCancel(m)}
-						>
-							{m.cancelled ? "Restore" : "Cancel"}
-						</Button>
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							className="text-destructive hover:text-destructive"
-							onClick={() => handleDelete(m.id)}
-						>
-							<Trash2 className="size-3.5" />
-						</Button>
-					</div>
-				);
+			{
+				id: "date",
+				header: "Date",
+				accessorFn: (row) => row.scheduled_at,
+				cell: ({ row }) => {
+					const m = row.original;
+					let timeStr = formatDate(m.scheduled_at);
+					if (m.end_time) {
+						const endDt = new Date(m.end_time * 1000);
+						timeStr += ` - ${endDt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+					}
+					return (
+						<span className="text-muted-foreground whitespace-nowrap">
+							{timeStr}
+						</span>
+					);
+				},
 			},
-		},
-	];
+			{
+				id: "status",
+				header: "Status",
+				accessorFn: (row) => (row.cancelled ? 0 : row.scheduled_at),
+				cell: ({ row }) => {
+					const m = row.original;
+					if (m.cancelled) return <Badge variant="destructive">Cancelled</Badge>;
+					if (m.scheduled_at < now)
+						return <Badge variant="secondary">Past</Badge>;
+					return <Badge variant="outline">Upcoming</Badge>;
+				},
+			},
+			{
+				id: "rsvp",
+				header: "RSVP",
+				cell: ({ row }) => {
+					const m = row.original;
+					return (
+						<div className="flex items-center gap-2 text-xs text-muted-foreground">
+							<span className="text-emerald-600 flex items-center gap-0.5">
+								<Check className="size-3" />
+								{m.yes_count}
+							</span>
+							<span className="text-amber-600 flex items-center gap-0.5">
+								<HelpCircle className="size-3" />
+								{m.maybe_count}
+							</span>
+							<span className="text-red-600 flex items-center gap-0.5">
+								<X className="size-3" />
+								{m.no_count}
+							</span>
+						</div>
+					);
+				},
+			},
+			{
+				id: "actions",
+				header: "",
+				cell: ({ row }) => {
+					const m = row.original;
+					return (
+						<div
+							className="flex items-center gap-1"
+							onClick={(e) => e.stopPropagation()}
+						>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								onClick={() => setEditMeeting(m)}
+							>
+								<Pencil className="size-3.5" />
+							</Button>
+							<Button
+								variant="ghost"
+								size="sm"
+								className="h-6 px-2 text-xs"
+								onClick={() => handleCancel(m)}
+							>
+								{m.cancelled ? "Restore" : "Cancel"}
+							</Button>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								className="text-destructive hover:text-destructive"
+								onClick={() => handleDelete(m.id)}
+							>
+								<Trash2 className="size-3.5" />
+							</Button>
+						</div>
+					);
+				},
+			},
+		],
+		[now],
+	);
 
 	return (
 		<div className="space-y-4">

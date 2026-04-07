@@ -45,6 +45,55 @@ function formatDate(unix: number) {
 	});
 }
 
+const columns: ColumnDef<User, unknown>[] = [
+	{
+		accessorKey: "name",
+		header: "Member",
+		cell: ({ row }) => {
+			const u = row.original;
+			return (
+				<div className="flex items-center gap-2.5">
+					<Avatar size="sm" className="shrink-0">
+						<AvatarImage src={u.avatar_url} />
+						<AvatarFallback>{u.name[0]}</AvatarFallback>
+					</Avatar>
+					<span className="font-medium">{u.name}</span>
+					{u.is_admin && (
+						<Badge variant="outline" className="text-[0.6rem] h-4 px-1.5">
+							Admin
+						</Badge>
+					)}
+				</div>
+			);
+		},
+	},
+	{
+		accessorKey: "role",
+		header: "Role",
+		cell: ({ row }) => {
+			const role = row.original.role;
+			if (!role) return <span className="text-muted-foreground">—</span>;
+			return (
+				<Badge variant={roleVariant[role]}>
+					{role.charAt(0).toUpperCase() + role.slice(1)}
+				</Badge>
+			);
+		},
+	},
+	{
+		accessorKey: "cdt_name",
+		header: "CDT",
+		cell: ({ row }) => {
+			const name = row.original.cdt_name;
+			return name ? (
+				<span>{name}</span>
+			) : (
+				<span className="text-muted-foreground">—</span>
+			);
+		},
+	},
+];
+
 function TeamListView({
 	users,
 	cdts,
@@ -176,55 +225,6 @@ function TeamListView({
 		setUserMeetings([]);
 		setSheetOpen(true);
 	};
-
-	const columns: ColumnDef<User, unknown>[] = [
-		{
-			accessorKey: "name",
-			header: "Member",
-			cell: ({ row }) => {
-				const u = row.original;
-				return (
-					<div className="flex items-center gap-2.5">
-						<Avatar size="sm" className="shrink-0">
-							<AvatarImage src={u.avatar_url} />
-							<AvatarFallback>{u.name[0]}</AvatarFallback>
-						</Avatar>
-						<span className="font-medium">{u.name}</span>
-						{u.is_admin && (
-							<Badge variant="outline" className="text-[0.6rem] h-4 px-1.5">
-								Admin
-							</Badge>
-						)}
-					</div>
-				);
-			},
-		},
-		{
-			accessorKey: "role",
-			header: "Role",
-			cell: ({ row }) => {
-				const role = row.original.role;
-				if (!role) return <span className="text-muted-foreground">—</span>;
-				return (
-					<Badge variant={roleVariant[role]}>
-						{role.charAt(0).toUpperCase() + role.slice(1)}
-					</Badge>
-				);
-			},
-		},
-		{
-			accessorKey: "cdt_name",
-			header: "CDT",
-			cell: ({ row }) => {
-				const name = row.original.cdt_name;
-				return name ? (
-					<span>{name}</span>
-				) : (
-					<span className="text-muted-foreground">—</span>
-				);
-			},
-		},
-	];
 
 	return (
 		<div className="space-y-4">

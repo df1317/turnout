@@ -60,6 +60,8 @@ export function createWebApp(env: Env) {
 			cdt_id: string | null;
 			cdt_name: string | null;
 		}>();
+		
+		c.header("Cache-Control", "no-store, max-age=0");
 		return c.json(
 			rows.results.map((r) => ({
 				...r,
@@ -700,16 +702,13 @@ export function createWebApp(env: Env) {
 		const validRoles = ["student", "mentor", "parent", "alumni"];
 		if (role && !validRoles.includes(role))
 			return c.json({ error: "Invalid role" }, 400);
-		const stmt = c.env.DB.prepare(
-			"UPDATE slack_user SET role = ? WHERE user_id = ?",
-		).bind(role ?? null, null!);
-		await c.env.DB.batch(
-			user_ids.map((id) =>
-				c.env.DB.prepare(
-					"UPDATE slack_user SET role = ? WHERE user_id = ?",
-				).bind(role ?? null, id),
-			),
-		);
+		
+		for (const id of user_ids) {
+			await c.env.DB.prepare(
+				"UPDATE slack_user SET role = ? WHERE user_id = ?",
+			).bind(role ?? null, id).run();
+		}
+		
 		return c.json({ ok: true });
 	});
 
@@ -721,20 +720,16 @@ export function createWebApp(env: Env) {
 		if (!user_ids?.length)
 			return c.json({ error: "No user IDs provided" }, 400);
 		if (cdt_id === null) {
-			await c.env.DB.batch(
-				user_ids.map((id) =>
-					c.env.DB.prepare("DELETE FROM cdt_member WHERE user_id = ?").bind(id),
-				),
-			);
+			for (const id of user_ids) {
+				await c.env.DB.prepare("DELETE FROM cdt_member WHERE user_id = ?").bind(id).run();
+			}
 		} else {
-			await c.env.DB.batch(
-				user_ids.map((id) =>
-					c.env.DB.prepare(
-						`INSERT INTO cdt_member (user_id, cdt_id) VALUES (?, ?)
+			for (const id of user_ids) {
+				await c.env.DB.prepare(
+					`INSERT INTO cdt_member (user_id, cdt_id) VALUES (?, ?)
            ON CONFLICT (user_id) DO UPDATE SET cdt_id = excluded.cdt_id`,
-					).bind(id, cdt_id),
-				),
-			);
+				).bind(id, cdt_id).run();
+			}
 		}
 		return c.json({ ok: true });
 	});
