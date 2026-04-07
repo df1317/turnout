@@ -138,10 +138,30 @@ function RsvpCard({
 	const d = new Date(meeting.scheduled_at * 1000);
 	const month = d.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
 	const day = d.getDate();
-	const time = d.toLocaleTimeString("en-US", {
+
+	let timeStr = d.toLocaleTimeString("en-US", {
 		hour: "numeric",
 		minute: "2-digit",
 	});
+
+	if (meeting.end_time) {
+		const endDt = new Date(meeting.end_time * 1000);
+		timeStr += ` - ${endDt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+
+		const durationMinutes = Math.round(
+			(meeting.end_time - meeting.scheduled_at) / 60,
+		);
+		const hours = Math.floor(durationMinutes / 60);
+		const mins = durationMinutes % 60;
+		if (hours > 0 && mins > 0) {
+			timeStr += ` (${hours}h ${mins}m)`;
+		} else if (hours > 0) {
+			timeStr += ` (${hours} hr)`;
+		} else {
+			timeStr += ` (${mins} min)`;
+		}
+	}
+
 	const weekday = d.toLocaleDateString("en-US", { weekday: "long" });
 
 	return (
@@ -162,7 +182,7 @@ function RsvpCard({
 							{meeting.name}
 						</p>
 						<p className="text-xs text-muted-foreground mt-0.5">
-							{weekday} · {time}
+							{weekday} · {timeStr}
 						</p>
 						<p className="text-xs text-muted-foreground mt-0.5">
 							<span className="text-emerald-600">
@@ -350,6 +370,7 @@ function CreateMeetingDialog({
 		name.trim() &&
 		date &&
 		time &&
+		(!endTime || endTime > time) &&
 		(!isRecurring || (selectedDays.length > 0 && endDate));
 
 	return (

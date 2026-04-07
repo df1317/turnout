@@ -443,26 +443,34 @@ function TeamListView({
 										</p>
 									) : (
 										<ul className="space-y-2">
-											{userMeetings.map((m) => (
-												<li
-													key={m.id}
-													className="flex items-start justify-between gap-2"
-												>
-													<div>
-														<p className="text-xs font-medium leading-snug">
-															{m.name}
-														</p>
-														<p className="text-[0.65rem] text-muted-foreground">
-															{formatDate(m.scheduled_at)}
-														</p>
-													</div>
-													<span
-														className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[0.6rem] font-medium shrink-0 ${statusColor[m.status] ?? ""}`}
+											{userMeetings.map((m) => {
+												let timeStr = formatDate(m.scheduled_at);
+												if (m.end_time) {
+													const endDt = new Date(m.end_time * 1000);
+													timeStr += ` - ${endDt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+												}
+
+												return (
+													<li
+														key={m.id}
+														className="flex items-start justify-between gap-2"
 													>
-														{m.status}
-													</span>
-												</li>
-											))}
+														<div>
+															<p className="text-xs font-medium leading-snug">
+																{m.name}
+															</p>
+															<p className="text-[0.65rem] text-muted-foreground">
+																{timeStr}
+															</p>
+														</div>
+														<span
+															className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[0.6rem] font-medium shrink-0 ${statusColor[m.status] ?? ""}`}
+														>
+															{m.status}
+														</span>
+													</li>
+												);
+											})}
 										</ul>
 									)}
 								</div>
