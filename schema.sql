@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS meeting (
   name         TEXT    NOT NULL,
   description  TEXT    NOT NULL DEFAULT '',
   scheduled_at INTEGER NOT NULL,  -- unix timestamp
+  end_time     INTEGER,           -- unix timestamp (optional for backwards compatibility)
   channel_id   TEXT    NOT NULL,  -- where announcement was posted
   message_ts   TEXT    NOT NULL,  -- Slack message ts for chat.update
   cancelled    INTEGER NOT NULL DEFAULT 0

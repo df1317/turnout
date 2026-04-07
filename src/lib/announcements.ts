@@ -7,6 +7,7 @@ export function buildAnnouncementBlocks(
 		name: string;
 		description: string;
 		scheduled_at: number;
+		end_time?: number | null;
 	},
 	attendees: { yes: string[]; maybe: string[]; no: string[] },
 ): any[] {
@@ -20,12 +21,17 @@ export function buildAnnouncementBlocks(
 		contextParts.push(`❌ Can't make it: ${mentionList(attendees.no)}`);
 	if (!contextParts.length) contextParts.push("No RSVPs yet");
 
+	let timeStr = `<!date^${meeting.scheduled_at}^{date_long_pretty} at {time}|${new Date(meeting.scheduled_at * 1000).toISOString()}>`;
+	if (meeting.end_time) {
+		timeStr += ` - <!date^${meeting.end_time}^{time}|${new Date(meeting.end_time * 1000).toISOString()}>`;
+	}
+
 	return [
 		{
 			type: "section",
 			text: {
 				type: "mrkdwn",
-				text: `*${meeting.name}*${meeting.description ? `\n${meeting.description}` : ""}\n\n📅 <!date^${meeting.scheduled_at}^{date_long_pretty} at {time}|${new Date(meeting.scheduled_at * 1000).toISOString()}>`,
+				text: `*${meeting.name}*${meeting.description ? `\n${meeting.description}` : ""}\n\n📅 ${timeStr}`,
 			},
 		},
 		{
@@ -65,13 +71,19 @@ export function buildCancelledAnnouncementBlocks(meeting: {
 	name: string;
 	description: string;
 	scheduled_at: number;
+	end_time?: number | null;
 }): any[] {
+	let timeStr = `<!date^${meeting.scheduled_at}^{date_long_pretty} at {time}|${new Date(meeting.scheduled_at * 1000).toISOString()}>`;
+	if (meeting.end_time) {
+		timeStr += ` - <!date^${meeting.end_time}^{time}|${new Date(meeting.end_time * 1000).toISOString()}>`;
+	}
+
 	return [
 		{
 			type: "section",
 			text: {
 				type: "mrkdwn",
-				text: `~*${meeting.name}*~${meeting.description ? `\n~${meeting.description}~` : ""}\n\n~📅 <!date^${meeting.scheduled_at}^{date_long_pretty} at {time}|${new Date(meeting.scheduled_at * 1000).toISOString()}>~`,
+				text: `~*${meeting.name}*~${meeting.description ? `\n~${meeting.description}~` : ""}\n\n~📅 ${timeStr}~`,
 			},
 		},
 		{
@@ -91,6 +103,7 @@ export async function updateAnnouncement(
 		name: string;
 		description: string;
 		scheduled_at: number;
+		end_time?: number | null;
 		channel_id: string;
 		message_ts: string;
 		cancelled: number;

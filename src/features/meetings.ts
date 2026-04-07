@@ -163,6 +163,17 @@ function buildCreateModal(isRecurring: boolean): any {
 				},
 				{
 					type: "input",
+					block_id: "duration_block",
+					element: {
+						type: "plain_text_input",
+						action_id: "duration_minutes",
+						placeholder: { type: "plain_text", text: "e.g. 60 or 120" },
+					},
+					label: { type: "plain_text", text: "Duration (minutes)" },
+					optional: true,
+				},
+				{
+					type: "input",
 					block_id: "end_date_block",
 					element: { type: "datepicker", action_id: "end_date" },
 					label: { type: "plain_text", text: "Repeat until" },
@@ -174,6 +185,17 @@ function buildCreateModal(isRecurring: boolean): any {
 					block_id: "datetime_block",
 					element: { type: "datetimepicker", action_id: "datetime" },
 					label: { type: "plain_text", text: "Date & Time" },
+				},
+				{
+					type: "input",
+					block_id: "duration_block",
+					element: {
+						type: "plain_text_input",
+						action_id: "duration_minutes",
+						placeholder: { type: "plain_text", text: "e.g. 60 or 120" },
+					},
+					label: { type: "plain_text", text: "Duration (minutes)" },
+					optional: true,
 				},
 				{
 					type: "actions",
@@ -197,6 +219,7 @@ function buildEditModal(meeting: {
 	name: string;
 	description: string;
 	scheduled_at: number;
+	end_time: number | null;
 	channel_id: string;
 	cancelled: number;
 }): any {
@@ -287,6 +310,19 @@ function buildEditModal(meeting: {
 					initial_date_time: meeting.scheduled_at,
 				},
 				label: { type: "plain_text", text: "Date & Time" },
+			},
+			{
+				type: "input",
+				block_id: "duration_block",
+				element: {
+					type: "plain_text_input",
+					action_id: "duration_minutes",
+					initial_value: meeting.end_time
+						? String(Math.round((meeting.end_time - meeting.scheduled_at) / 60))
+						: "",
+				},
+				label: { type: "plain_text", text: "Duration (minutes)" },
+				optional: true,
 			},
 			{
 				type: "input",
@@ -418,7 +454,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 		if (!value) return;
 		const meetingId = Number(value);
 		const meeting = await env.DB.prepare(
-			"SELECT id, name, description, scheduled_at, channel_id, cancelled FROM meeting WHERE id = ?",
+			"SELECT id, name, description, scheduled_at, end_time, channel_id, cancelled FROM meeting WHERE id = ?",
 		)
 			.bind(meetingId)
 			.first<{
@@ -426,6 +462,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 				name: string;
 				description: string;
 				scheduled_at: number;
+				end_time: number | null;
 				channel_id: string;
 				cancelled: number;
 			}>();
@@ -460,7 +497,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 			.bind(meetingId)
 			.run();
 		const meeting = await env.DB.prepare(
-			"SELECT id, name, description, scheduled_at, channel_id, message_ts, cancelled FROM meeting WHERE id = ?",
+			"SELECT id, name, description, scheduled_at, end_time, channel_id, message_ts, cancelled FROM meeting WHERE id = ?",
 		)
 			.bind(meetingId)
 			.first<{
@@ -468,6 +505,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 				name: string;
 				description: string;
 				scheduled_at: number;
+				end_time: number | null;
 				channel_id: string;
 				message_ts: string;
 				cancelled: number;
@@ -498,7 +536,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 			.bind(meetingId)
 			.run();
 		const meeting = await env.DB.prepare(
-			"SELECT id, name, description, scheduled_at, channel_id, message_ts, cancelled FROM meeting WHERE id = ?",
+			"SELECT id, name, description, scheduled_at, end_time, channel_id, message_ts, cancelled FROM meeting WHERE id = ?",
 		)
 			.bind(meetingId)
 			.first<{
@@ -506,6 +544,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 				name: string;
 				description: string;
 				scheduled_at: number;
+				end_time: number | null;
 				channel_id: string;
 				message_ts: string;
 				cancelled: number;
@@ -533,7 +572,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 		const meetingId = Number(value);
 		const rootViewId = (payload as any).view.root_view_id;
 		const meeting = await env.DB.prepare(
-			"SELECT id, name, description, scheduled_at, channel_id, message_ts, cancelled FROM meeting WHERE id = ?",
+			"SELECT id, name, description, scheduled_at, end_time, channel_id, message_ts, cancelled FROM meeting WHERE id = ?",
 		)
 			.bind(meetingId)
 			.first<{
@@ -541,6 +580,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 				name: string;
 				description: string;
 				scheduled_at: number;
+				end_time: number | null;
 				channel_id: string;
 				message_ts: string;
 				cancelled: number;
@@ -592,6 +632,9 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 						.split(":")
 						.map(Number);
 					const timeOfDay = hours * 60 + mins;
+					const duration_minutes = flat.duration_minutes?.value
+						? Number(flat.duration_minutes.value)
+						: null;
 					const days: number[] = (flat.days?.selected_options ?? []).map(
 						(o: any) => Number(o.value),
 					);
@@ -614,17 +657,28 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 						startUnix,
 						endUnix,
 					)) {
+						const end_time = duration_minutes
+							? scheduled_at + duration_minutes * 60
+							: null;
 						const row = await env.DB.prepare(
-							"INSERT INTO meeting (series_id, name, description, scheduled_at, channel_id, message_ts) VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+							"INSERT INTO meeting (series_id, name, description, scheduled_at, end_time, channel_id, message_ts) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
 						)
-							.bind(series.id, name, description, scheduled_at, channelId, "")
+							.bind(
+								series.id,
+								name,
+								description,
+								scheduled_at,
+								end_time,
+								channelId,
+								"",
+							)
 							.first<{ id: number }>();
 						if (!row) continue;
 						const post = await postWithJoin(client, channelId, {
 							channel: channelId,
 							text: `New meeting: ${name}`,
 							blocks: buildAnnouncementBlocks(
-								{ id: row.id, name, description, scheduled_at },
+								{ id: row.id, name, description, scheduled_at, end_time },
 								{ yes: [], maybe: [], no: [] },
 							),
 						});
@@ -636,17 +690,23 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 					}
 				} else {
 					const scheduled_at: number = flat.datetime?.selected_date_time ?? 0;
+					const duration_minutes = flat.duration_minutes?.value
+						? Number(flat.duration_minutes.value)
+						: null;
+					const end_time = duration_minutes
+						? scheduled_at + duration_minutes * 60
+						: null;
 					const row = await env.DB.prepare(
-						"INSERT INTO meeting (name, description, scheduled_at, channel_id, message_ts) VALUES (?, ?, ?, ?, ?) RETURNING id",
+						"INSERT INTO meeting (name, description, scheduled_at, end_time, channel_id, message_ts) VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
 					)
-						.bind(name, description, scheduled_at, channelId, "")
+						.bind(name, description, scheduled_at, end_time, channelId, "")
 						.first<{ id: number }>();
 					if (!row) return;
 					const post = await postWithJoin(client, channelId, {
 						channel: channelId,
 						text: `New meeting: ${name}`,
 						blocks: buildAnnouncementBlocks(
-							{ id: row.id, name, description, scheduled_at },
+							{ id: row.id, name, description, scheduled_at, end_time },
 							{ yes: [], maybe: [], no: [] },
 						),
 					});
@@ -674,16 +734,22 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 				const name: string = flat.name?.value ?? "";
 				const description: string = flat.description?.value ?? "";
 				const scheduled_at: number = flat.datetime?.selected_date_time ?? 0;
+				const duration_minutes = flat.duration_minutes?.value
+					? Number(flat.duration_minutes.value)
+					: null;
+				const end_time = duration_minutes
+					? scheduled_at + duration_minutes * 60
+					: null;
 				const channelId: string = flat.channel?.selected_channel ?? "";
 
 				await env.DB.prepare(
-					"UPDATE meeting SET name = ?, description = ?, scheduled_at = ?, channel_id = ? WHERE id = ?",
+					"UPDATE meeting SET name = ?, description = ?, scheduled_at = ?, end_time = ?, channel_id = ? WHERE id = ?",
 				)
-					.bind(name, description, scheduled_at, channelId, meetingId)
+					.bind(name, description, scheduled_at, end_time, channelId, meetingId)
 					.run();
 
 				const meeting = await env.DB.prepare(
-					"SELECT id, name, description, scheduled_at, channel_id, message_ts, cancelled FROM meeting WHERE id = ?",
+					"SELECT id, name, description, scheduled_at, end_time, channel_id, message_ts, cancelled FROM meeting WHERE id = ?",
 				)
 					.bind(meetingId)
 					.first<{
@@ -691,6 +757,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 						name: string;
 						description: string;
 						scheduled_at: number;
+						end_time: number | null;
 						channel_id: string;
 						message_ts: string;
 						cancelled: number;
@@ -751,7 +818,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 						.bind(meetingId)
 						.all<{ user_id: string; status: string }>(),
 					env.DB.prepare(
-						"SELECT id, name, description, scheduled_at, channel_id, message_ts FROM meeting WHERE id = ?",
+						"SELECT id, name, description, scheduled_at, end_time, channel_id, message_ts FROM meeting WHERE id = ?",
 					)
 						.bind(meetingId)
 						.first<{
@@ -759,6 +826,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 							name: string;
 							description: string;
 							scheduled_at: number;
+							end_time: number | null;
 							channel_id: string;
 							message_ts: string;
 						}>(),

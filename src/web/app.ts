@@ -84,7 +84,7 @@ export function createWebApp(env: Env) {
 		const session = c.get("session")!;
 		const now = Math.floor(Date.now() / 1000);
 		const rows = await c.env.DB.prepare(
-			`SELECT m.id, m.name, m.description, m.scheduled_at, a.status AS my_status, a.note AS my_note,
+			`SELECT m.id, m.name, m.description, m.scheduled_at, m.end_time, a.status AS my_status, a.note AS my_note,
               (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'yes') AS yes_count,
               (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'maybe') AS maybe_count,
               (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'no') AS no_count
@@ -117,7 +117,7 @@ export function createWebApp(env: Env) {
 			.run();
 
 		const meeting = await c.env.DB.prepare(
-			"SELECT id, name, description, scheduled_at, channel_id, message_ts, cancelled FROM meeting WHERE id = ?",
+			"SELECT id, name, description, scheduled_at, end_time, channel_id, message_ts, cancelled FROM meeting WHERE id = ?",
 		)
 			.bind(meetingId)
 			.first<{
@@ -125,6 +125,7 @@ export function createWebApp(env: Env) {
 				name: string;
 				description: string;
 				scheduled_at: number;
+				end_time: number | null;
 				channel_id: string;
 				message_ts: string;
 				cancelled: number;
@@ -156,7 +157,7 @@ export function createWebApp(env: Env) {
 	api.get("/admin/users/:userId/meetings", requireAdmin(), async (c) => {
 		const userId = c.req.param("userId");
 		const rows = await c.env.DB.prepare(
-			`SELECT m.id, m.name, m.scheduled_at, a.status, a.note
+			`SELECT m.id, m.name, m.scheduled_at, m.end_time, a.status, a.note
        FROM attendance a
        JOIN meeting m ON m.id = a.meeting_id
        WHERE a.user_id = ?
@@ -167,6 +168,7 @@ export function createWebApp(env: Env) {
 				id: number;
 				name: string;
 				scheduled_at: number;
+				end_time: number | null;
 				status: string;
 				note: string;
 			}>();
@@ -309,7 +311,7 @@ export function createWebApp(env: Env) {
 
 	api.get("/admin/meetings", requireAdmin(), async (c) => {
 		const rows = await c.env.DB.prepare(
-			`SELECT m.id, m.name, m.description, m.scheduled_at, m.channel_id, m.message_ts, m.cancelled, m.series_id,
+			`SELECT m.id, m.name, m.description, m.scheduled_at, m.end_time, m.channel_id, m.message_ts, m.cancelled, m.series_id,
          COALESCE(SUM(CASE WHEN a.status = 'yes' THEN 1 ELSE 0 END), 0) AS yes_count,
          COALESCE(SUM(CASE WHEN a.status = 'maybe' THEN 1 ELSE 0 END), 0) AS maybe_count,
          COALESCE(SUM(CASE WHEN a.status = 'no' THEN 1 ELSE 0 END), 0) AS no_count
@@ -320,6 +322,7 @@ export function createWebApp(env: Env) {
 			name: string;
 			description: string;
 			scheduled_at: number;
+			end_time: number | null;
 			channel_id: string;
 			message_ts: string;
 			cancelled: number;
@@ -358,9 +361,10 @@ export function createWebApp(env: Env) {
 			name: string;
 			description?: string;
 			scheduled_at: number;
+			end_time?: number;
 			channel_id?: string;
 		}>();
-		const { name, description = "", scheduled_at, channel_id } = body;
+		const { name, description = "", scheduled_at, end_time, channel_id } = body;
 		if (!name) return c.json({ error: "Name is required" }, 400);
 
 		const now = Math.floor(Date.now() / 1000);
@@ -374,7 +378,7 @@ export function createWebApp(env: Env) {
 				.join({ channel: channel_id })
 				.catch(() => {});
 			const blocks = buildAnnouncementBlocks(
-				{ id: 0, name, description, scheduled_at },
+				{ id: 0, name, description, scheduled_at, end_time: end_time ?? null },
 				{ yes: [], maybe: [], no: [] },
 			);
 			const posted = (await botClient.chat.postMessage({
@@ -386,10 +390,17 @@ export function createWebApp(env: Env) {
 		}
 
 		const result = await c.env.DB.prepare(
-			`INSERT INTO meeting (name, description, scheduled_at, channel_id, message_ts, cancelled)
-       VALUES (?, ?, ?, ?, ?, 0)`,
+			`INSERT INTO meeting (name, description, scheduled_at, end_time, channel_id, message_ts, cancelled)
+       VALUES (?, ?, ?, ?, ?, ?, 0)`,
 		)
-			.bind(name, description, scheduled_at, channel_id ?? null, message_ts)
+			.bind(
+				name,
+				description,
+				scheduled_at,
+				end_time ?? null,
+				channel_id ?? null,
+				message_ts,
+			)
 			.run();
 
 		const id = result.meta.last_row_id as number;
@@ -399,6 +410,7 @@ export function createWebApp(env: Env) {
 				name,
 				description,
 				scheduled_at,
+				end_time: end_time ?? null,
 				channel_id: channel_id ?? null,
 				message_ts,
 				cancelled: false,
@@ -417,6 +429,7 @@ export function createWebApp(env: Env) {
 			name?: string;
 			description?: string;
 			scheduled_at?: number;
+			end_time?: number | null;
 		}>();
 		const fields: string[] = [];
 		const values: (string | number | null)[] = [];
@@ -431,6 +444,10 @@ export function createWebApp(env: Env) {
 		if (body.scheduled_at !== undefined) {
 			fields.push("scheduled_at = ?");
 			values.push(body.scheduled_at);
+		}
+		if (body.end_time !== undefined) {
+			fields.push("end_time = ?");
+			values.push(body.end_time);
 		}
 		if (fields.length === 0)
 			return c.json({ error: "No fields to update" }, 400);
@@ -501,6 +518,7 @@ export function createWebApp(env: Env) {
 			name: string;
 			description?: string;
 			scheduled_at: number;
+			duration_minutes?: number;
 			channel_id?: string;
 			days_of_week: number[];
 			time_of_day_minutes: number;
@@ -510,6 +528,7 @@ export function createWebApp(env: Env) {
 			name,
 			description = "",
 			scheduled_at,
+			duration_minutes,
 			channel_id,
 			days_of_week,
 			time_of_day_minutes,
@@ -546,6 +565,7 @@ export function createWebApp(env: Env) {
 		const created: {
 			id: number;
 			scheduled_at: number;
+			end_time: number | null;
 			message_ts: string | null;
 		}[] = [];
 
@@ -555,13 +575,14 @@ export function createWebApp(env: Env) {
 		for (const ts of dates) {
 			let message_ts: string | null = null;
 			const shouldAnnounceNow = ts <= now + twoWeeksInSeconds;
+			const end_time = duration_minutes ? ts + duration_minutes * 60 : null;
 
 			if (channel_id && shouldAnnounceNow) {
 				try {
 					await botClient.conversations.join({ channel: channel_id });
 				} catch {}
 				const blocks = buildAnnouncementBlocks(
-					{ id: 0, name, description, scheduled_at: ts },
+					{ id: 0, name, description, scheduled_at: ts, end_time },
 					{ yes: [], maybe: [], no: [] },
 				);
 				const posted = (await botClient.chat.postMessage({
@@ -573,14 +594,23 @@ export function createWebApp(env: Env) {
 			}
 
 			const result = await c.env.DB.prepare(
-				`INSERT INTO meeting (series_id, name, description, scheduled_at, channel_id, message_ts, cancelled)
-         VALUES (?, ?, ?, ?, ?, ?, 0)`,
+				`INSERT INTO meeting (series_id, name, description, scheduled_at, end_time, channel_id, message_ts, cancelled)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
 			)
-				.bind(seriesId, name, description, ts, channel_id ?? null, message_ts)
+				.bind(
+					seriesId,
+					name,
+					description,
+					ts,
+					end_time,
+					channel_id ?? null,
+					message_ts,
+				)
 				.run();
 			created.push({
 				id: result.meta.last_row_id as number,
 				scheduled_at: ts,
+				end_time,
 				message_ts,
 			});
 		}
@@ -624,7 +654,7 @@ export function createWebApp(env: Env) {
 
 		do {
 			const result = (await botClient.conversations.list({
-				types: ["public_channel", "private_channel"],
+				types: ["public_channel"],
 				limit: 200,
 				...(cursor ? { cursor } : {}),
 			})) as {

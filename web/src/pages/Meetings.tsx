@@ -260,6 +260,7 @@ function CreateMeetingDialog({
 	const [desc, setDesc] = useState("");
 	const [date, setDate] = useState<Date>();
 	const [time, setTime] = useState("");
+	const [endTime, setEndTime] = useState("");
 	const [channel, setChannel] = useState("");
 	const [creating, setCreating] = useState(false);
 
@@ -273,6 +274,13 @@ function CreateMeetingDialog({
 		);
 	};
 
+	const handleDateSelect = (newDate: Date | undefined) => {
+		setDate(newDate);
+		if (newDate && selectedDays.length === 0) {
+			setSelectedDays([newDate.getDay()]);
+		}
+	};
+
 	const handleCreate = async () => {
 		if (!name.trim() || !date || !time) return;
 		setCreating(true);
@@ -282,19 +290,34 @@ function CreateMeetingDialog({
 			dt.setUTCHours(hours, minutes, 0, 0);
 			const scheduledAt = toUnix(dt);
 
+			let durationMinutes: number | undefined;
+			let endUnix: number | undefined;
+			if (endTime) {
+				const [endHours, endMinutes] = endTime.split(":").map(Number);
+				const endDt = new Date(date);
+				endDt.setUTCHours(endHours, endMinutes, 0, 0);
+				// Handle overnight meetings
+				if (endDt < dt) {
+					endDt.setDate(endDt.getDate() + 1);
+				}
+				endUnix = toUnix(endDt);
+				durationMinutes = (endUnix - scheduledAt) / 60;
+			}
+
 			if (isRecurring && selectedDays.length > 0 && endDate) {
 				const timeOfDayMinutes = hours * 60 + minutes;
-				const endDt = new Date(endDate);
-				endDt.setUTCHours(23, 59, 59, 0);
-				const endUnix = toUnix(endDt);
+				const endSeriesDt = new Date(endDate);
+				endSeriesDt.setUTCHours(23, 59, 59, 0);
+				const endSeriesUnix = toUnix(endSeriesDt);
 				const created = await api.createMeetingSeries({
 					name: name.trim(),
 					description: desc.trim() || undefined,
 					scheduled_at: scheduledAt,
+					duration_minutes: durationMinutes,
 					channel_id: channel || undefined,
 					days_of_week: selectedDays,
 					time_of_day_minutes: timeOfDayMinutes,
-					end_date: endUnix,
+					end_date: endSeriesUnix,
 				});
 				onCreated(created);
 			} else {
@@ -302,6 +325,7 @@ function CreateMeetingDialog({
 					name: name.trim(),
 					description: desc.trim() || undefined,
 					scheduled_at: scheduledAt,
+					end_time: endUnix,
 					channel_id: channel || undefined,
 				});
 				onCreated(created);
@@ -311,6 +335,7 @@ function CreateMeetingDialog({
 			setDesc("");
 			setDate(undefined);
 			setTime("");
+			setEndTime("");
 			setChannel("");
 			setIsRecurring(false);
 			setSelectedDays([]);
@@ -363,23 +388,38 @@ function CreateMeetingDialog({
 							rows={3}
 						/>
 					</div>
-					<div className="space-y-1.5">
-						<label className="text-xs font-medium">
-							Date & Time <span className="text-destructive">*</span>
-						</label>
-						<div className="flex gap-2">
+					<div className="grid grid-cols-7 gap-3">
+						<div className="space-y-1.5 flex flex-col col-span-3">
+							<label className="text-xs font-medium">
+								Date <span className="text-destructive">*</span>
+							</label>
 							<DatePicker
 								date={date}
-								onSelect={setDate}
+								onSelect={handleDateSelect}
 								placeholder="Pick a date"
-								className="flex-1"
 							/>
-							<Input
-								type="time"
-								value={time}
-								onChange={(e) => setTime(e.target.value)}
-								className="h-8 w-28 text-xs"
-							/>
+						</div>
+						<div className="space-y-1.5 col-span-4">
+							<label className="text-xs font-medium flex items-center justify-between">
+								<span>
+									Time <span className="text-destructive">*</span>
+								</span>
+							</label>
+							<div className="flex items-center gap-1.5">
+								<Input
+									type="time"
+									value={time}
+									onChange={(e) => setTime(e.target.value)}
+									className="h-8 flex-1 text-xs px-2"
+								/>
+								<span className="text-muted-foreground text-xs">-</span>
+								<Input
+									type="time"
+									value={endTime}
+									onChange={(e) => setEndTime(e.target.value)}
+									className="h-8 flex-1 text-xs px-2"
+								/>
+							</div>
 						</div>
 					</div>
 					<div className="space-y-1.5 flex flex-col">
@@ -409,18 +449,20 @@ function CreateMeetingDialog({
 						</button>
 
 						{isRecurring && (
-							<div className="space-y-2 pl-6">
-								<div className="space-y-1.5">
-									<label className="text-xs font-medium">Repeat on</label>
-									<div className="flex gap-1">
+							<div className="space-y-4 pl-6 pt-2">
+								<div className="space-y-1.5 flex flex-col">
+									<label className="text-xs font-medium">
+										Repeat on <span className="text-destructive">*</span>
+									</label>
+									<div className="flex gap-1.5">
 										{DAY_LABELS.map((label, i) => (
 											<button
 												key={i}
 												type="button"
-												className={`w-9 h-7 rounded text-[11px] font-medium transition-colors ${
+												className={`w-9 h-8 rounded-md border text-[11px] font-medium transition-colors ${
 													selectedDays.includes(i)
-														? "bg-primary text-primary-foreground"
-														: "bg-muted text-muted-foreground hover:bg-muted/80"
+														? "bg-primary text-primary-foreground border-primary"
+														: "bg-transparent border-input text-foreground hover:bg-muted/80"
 												}`}
 												onClick={() => toggleDay(i)}
 											>
@@ -429,7 +471,7 @@ function CreateMeetingDialog({
 										))}
 									</div>
 								</div>
-								<div className="space-y-1.5">
+								<div className="space-y-1.5 flex flex-col">
 									<label className="text-xs font-medium">
 										End date <span className="text-destructive">*</span>
 									</label>
@@ -656,6 +698,7 @@ function AdminMeetingsView() {
 	const [editMeeting, setEditMeeting] = useState<AdminMeeting | null>(null);
 	const [viewAttendanceMeeting, setViewAttendanceMeeting] =
 		useState<AdminMeeting | null>(null);
+	const [selectedMeetings, setSelectedMeetings] = useState<AdminMeeting[]>([]);
 	const now = Math.floor(Date.now() / 1000);
 
 	useEffect(() => {
@@ -698,11 +741,19 @@ function AdminMeetingsView() {
 			id: "date",
 			header: "Date",
 			accessorFn: (row) => row.scheduled_at,
-			cell: ({ row }) => (
-				<span className="text-muted-foreground whitespace-nowrap">
-					{formatDate(row.original.scheduled_at)}
-				</span>
-			),
+			cell: ({ row }) => {
+				const m = row.original;
+				let timeStr = formatDate(m.scheduled_at);
+				if (m.end_time) {
+					const endDt = new Date(m.end_time * 1000);
+					timeStr += ` - ${endDt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+				}
+				return (
+					<span className="text-muted-foreground whitespace-nowrap">
+						{timeStr}
+					</span>
+				);
+			},
 		},
 		{
 			id: "status",
@@ -781,19 +832,48 @@ function AdminMeetingsView() {
 	return (
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
-				<span className="text-xs text-muted-foreground">
-					{meetings.length} meetings
-				</span>
-				<Button size="sm" onClick={() => setCreateOpen(true)}>
-					<Plus className="size-3.5 mr-1" />
-					New Meeting
-				</Button>
+				<div className="flex items-center gap-2">
+					<span className="text-xs text-muted-foreground">
+						{meetings.length} meetings
+					</span>
+					{selectedMeetings.length > 0 && (
+						<>
+							<Separator orientation="vertical" className="h-4" />
+							<span className="text-xs text-muted-foreground">
+								{selectedMeetings.length} selected
+							</span>
+						</>
+					)}
+				</div>
+				<div className="flex items-center gap-2">
+					{selectedMeetings.length > 0 && (
+						<Button
+							size="sm"
+							variant="destructive"
+							onClick={() => {
+								for (const m of selectedMeetings) {
+									handleDelete(m.id);
+								}
+								setSelectedMeetings([]);
+							}}
+						>
+							<Trash2 className="size-3.5 mr-1" />
+							Delete Selected
+						</Button>
+					)}
+					<Button size="sm" onClick={() => setCreateOpen(true)}>
+						<Plus className="size-3.5 mr-1" />
+						New Meeting
+					</Button>
+				</div>
 			</div>
 			<DataTable
 				columns={columns}
 				data={meetings}
 				filterPlaceholder="Filter meetings…"
 				onRowClick={(m) => setViewAttendanceMeeting(m)}
+				enableRowSelection
+				onSelectionChange={setSelectedMeetings}
 			/>
 
 			<CreateMeetingDialog

@@ -21,6 +21,7 @@ export type Meeting = {
 	name: string;
 	description: string;
 	scheduled_at: number;
+	end_time: number | null;
 	my_status: "yes" | "maybe" | "no" | null;
 	my_note: string | null;
 	yes_count: number;
@@ -41,6 +42,7 @@ export type AdminMeeting = {
 	name: string;
 	description: string;
 	scheduled_at: number;
+	end_time: number | null;
 	channel_id: string;
 	cancelled: boolean;
 	series_id: number | null;
@@ -65,6 +67,7 @@ export type UserMeeting = {
 	id: number;
 	name: string;
 	scheduled_at: number;
+	end_time: number | null;
 	status: "yes" | "maybe" | "no";
 	note: string;
 };
@@ -172,6 +175,7 @@ export const api = {
 		name: string;
 		description?: string;
 		scheduled_at: number;
+		end_time?: number;
 		channel_id?: string;
 	}): Promise<AdminMeeting> {
 		return (
@@ -186,6 +190,7 @@ export const api = {
 		name: string;
 		description?: string;
 		scheduled_at: number;
+		duration_minutes?: number;
 		channel_id?: string;
 		days_of_week: number[];
 		time_of_day_minutes: number;
@@ -201,7 +206,12 @@ export const api = {
 	},
 	async updateMeeting(
 		id: number,
-		data: { name?: string; description?: string; scheduled_at?: number },
+		data: {
+			name?: string;
+			description?: string;
+			scheduled_at?: number;
+			end_time?: number | null;
+		},
 	): Promise<void> {
 		await apiFetch(`/api/admin/meetings/${id}`, {
 			method: "PUT",
