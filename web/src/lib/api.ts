@@ -4,6 +4,7 @@ export type Session = {
 	avatar_url: string;
 	is_admin: boolean;
 	role: string | null;
+	calendar_token: string | null;
 };
 
 export type User = {
@@ -114,6 +115,11 @@ export const api = {
 	async getUsers(): Promise<User[]> {
 		return (await apiFetch("/api/users")).json();
 	},
+	async getMeeting(id: number, token?: string): Promise<Meeting> {
+		return (
+			await apiFetch(`/api/meetings/${id}${token ? `/${token}` : ""}`)
+		).json();
+	},
 	async getMeetings(): Promise<Meeting[]> {
 		return (await apiFetch("/api/meetings")).json();
 	},
@@ -127,8 +133,9 @@ export const api = {
 		meetingId: number,
 		status: "yes" | "maybe" | "no",
 		note = "",
+		token?: string,
 	): Promise<void> {
-		await apiFetch(`/api/rsvp/${meetingId}`, {
+		await apiFetch(`/api/rsvp/${meetingId}${token ? `/${token}` : ""}`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ status, note }),

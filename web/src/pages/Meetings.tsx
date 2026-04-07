@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import {
 	CalendarIcon,
 	Check,
+	ChevronDown,
 	Copy,
 	HelpCircle,
 	Pencil,
@@ -1185,7 +1186,7 @@ export function MeetingsPage({ session }: { session: Session }) {
 	const [copied, setCopied] = useState(false);
 
 	const handleCopyCalendar = () => {
-		const url = window.location.origin + "/calendar.ics";
+		const url = `${window.location.origin}/api/calendar/${session.calendar_token}.ics`;
 		navigator.clipboard.writeText(url);
 		setCopied(true);
 		setTimeout(() => setCopied(false), 2000);
@@ -1323,19 +1324,63 @@ export function MeetingsPage({ session }: { session: Session }) {
 							RSVP to upcoming meetings.
 						</p>
 					</div>
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={handleCopyCalendar}
-						className="gap-2"
-					>
-						{copied ? (
-							<Check className="size-4" />
-						) : (
-							<Copy className="size-4" />
-						)}
-						{copied ? "Copied!" : "Calendar Feed"}
-					</Button>
+					<div className="flex items-center gap-2">
+						<Button variant="outline" size="sm" asChild className="h-8 gap-2">
+							<a
+								href={`http://calendar.google.com/calendar/render?cid=${encodeURIComponent(`${window.location.origin.replace(/^https?:\/\//, "http://")}/api/calendar/${session.calendar_token}.ics`)}`}
+								target="_blank"
+								rel="noreferrer"
+							>
+								<CalendarIcon className="size-3.5" />
+								Subscribe in Google Calendar
+							</a>
+						</Button>
+
+						<Popover>
+							<PopoverTrigger asChild>
+								<Button variant="outline" size="sm" className="h-8 px-2">
+									<ChevronDown className="size-4" />
+								</Button>
+							</PopoverTrigger>
+							<PopoverContent align="end" className="w-56 p-2">
+								<div className="flex flex-col gap-1">
+									<Button
+										variant="ghost"
+										size="sm"
+										onClick={handleCopyCalendar}
+										className="justify-start gap-2 font-normal"
+									>
+										{copied ? (
+											<Check className="size-4 text-emerald-600" />
+										) : (
+											<Copy className="size-4 text-muted-foreground" />
+										)}
+										{copied ? "Copied Link!" : "Copy Calendar Link"}
+									</Button>
+									<Button
+										variant="ghost"
+										size="sm"
+										asChild
+										className="justify-start gap-2 font-normal"
+									>
+										<a
+											href={`/api/calendar/${session.calendar_token}.ics`}
+											download
+										>
+											<CalendarIcon className="size-4 text-muted-foreground" />
+											Download .ics
+										</a>
+									</Button>
+									<div className="mt-2 rounded-md bg-muted/50 p-2">
+										<p className="text-[10px] text-muted-foreground leading-tight">
+											Note: Downloading the file will not sync future meeting
+											updates. Subscribe using the link instead.
+										</p>
+									</div>
+								</div>
+							</PopoverContent>
+						</Popover>
+					</div>
 				</div>
 
 				<Tabs defaultValue="upcoming">

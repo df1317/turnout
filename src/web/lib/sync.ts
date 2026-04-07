@@ -37,12 +37,13 @@ export async function syncAllUsers(
 		const stmts = chunk.map((u) =>
 			db
 				.prepare(
-					`INSERT INTO slack_user (user_id, name, avatar_url, is_admin, last_synced)
-         VALUES (?, ?, ?, ?, ?)
+					`INSERT INTO slack_user (user_id, name, avatar_url, is_admin, last_synced, calendar_token)
+         VALUES (?, ?, ?, ?, ?, hex(randomblob(16)))
          ON CONFLICT (user_id) DO UPDATE SET
            name = excluded.name,
            avatar_url = excluded.avatar_url,
            is_admin = excluded.is_admin,
+           calendar_token = COALESCE(slack_user.calendar_token, hex(randomblob(16))),
            last_synced = excluded.last_synced`,
 				)
 				.bind(u.id, u.name, u.avatar, u.is_admin ? 1 : 0, now),

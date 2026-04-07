@@ -38,12 +38,13 @@ CREATE TABLE IF NOT EXISTS meeting (
 
 -- Cached Slack user profiles (refreshed every 7 days)
 CREATE TABLE IF NOT EXISTS slack_user (
-  user_id     TEXT    PRIMARY KEY,
-  name        TEXT    NOT NULL DEFAULT '',
-  avatar_url  TEXT    NOT NULL DEFAULT '',
-  is_admin    INTEGER NOT NULL DEFAULT 0,
-  role        TEXT    CHECK(role IN ('student', 'parent', 'alumni', 'mentor')),
-  last_synced INTEGER NOT NULL DEFAULT 0
+  user_id        TEXT    PRIMARY KEY,
+  name           TEXT    NOT NULL DEFAULT '',
+  avatar_url     TEXT    NOT NULL DEFAULT '',
+  is_admin       INTEGER NOT NULL DEFAULT 0,
+  role           TEXT    CHECK(role IN ('student', 'parent', 'alumni', 'mentor')),
+  last_synced    INTEGER NOT NULL DEFAULT 0,
+  calendar_token TEXT    UNIQUE
 );
 
 -- RSVP per meeting per user

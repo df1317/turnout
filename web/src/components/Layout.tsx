@@ -8,7 +8,7 @@ export function Layout({
 	session,
 	children,
 }: {
-	session: Session;
+	session?: Session;
 	children: React.ReactNode;
 }) {
 	const location = useLocation();
@@ -51,31 +51,46 @@ export function Layout({
 							{navLink("/meetings", "Meetings")}
 							{navLink("/team", "Team")}
 							{navLink("/cdts", "CDTs")}
-							{session.is_admin && navLink("/admin", "Admin")}
+							{session?.is_admin && navLink("/admin", "Admin")}
 						</nav>
 					</div>
 
 					<div className="flex items-center gap-2">
-						<Avatar className="h-6 w-6">
-							<AvatarImage src={session.avatar_url} />
-							<AvatarFallback className="text-[10px]">
-								{session.name[0]}
-							</AvatarFallback>
-						</Avatar>
-						<span className="hidden text-[13px] text-muted-foreground sm:block">
-							{session.name}
-						</span>
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={async () => {
-								await fetch("/api/auth/logout", { method: "POST" });
-								window.location.href = "/";
-							}}
-							className="h-7 px-2 text-[13px] text-muted-foreground"
-						>
-							Sign out
-						</Button>
+						{session ? (
+							<>
+								<Avatar className="h-6 w-6">
+									<AvatarImage src={session.avatar_url} />
+									<AvatarFallback className="text-[10px]">
+										{session.name[0]}
+									</AvatarFallback>
+								</Avatar>
+								<span className="hidden text-[13px] text-muted-foreground sm:block">
+									{session.name}
+								</span>
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={async () => {
+										await fetch("/api/auth/logout", { method: "POST" });
+										window.location.href = "/";
+									}}
+									className="h-7 px-2 text-[13px] text-muted-foreground"
+								>
+									Sign out
+								</Button>
+							</>
+						) : (
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => {
+									window.location.href = "/api/auth/slack";
+								}}
+								className="h-7 px-2 text-[13px] text-muted-foreground"
+							>
+								Sign in
+							</Button>
+						)}
 					</div>
 				</div>
 			</header>

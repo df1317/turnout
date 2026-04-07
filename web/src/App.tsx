@@ -6,6 +6,7 @@ import { CdtsPage } from "./pages/Cdts";
 import { Dashboard } from "./pages/Dashboard";
 import { LoginPage } from "./pages/Login";
 import { MeetingsPage } from "./pages/Meetings";
+import { RsvpPage } from "./pages/Rsvp";
 import { TeamPage } from "./pages/Team";
 
 export default function App() {
@@ -161,7 +162,17 @@ export default function App() {
 	}
 
 	if (!session) {
-		return <LoginPage />;
+		return (
+			<BrowserRouter>
+				<Routes>
+					<Route
+						path="/rsvp/:id/:token"
+						element={<RsvpPage session={null} />}
+					/>
+					<Route path="*" element={<LoginPage />} />
+				</Routes>
+			</BrowserRouter>
+		);
 	}
 
 	return (
@@ -172,6 +183,10 @@ export default function App() {
 				<Route
 					path="/meetings/*"
 					element={<MeetingsPage session={session} />}
+				/>
+				<Route
+					path="/rsvp/:id/:token"
+					element={<RsvpPage session={session} />}
 				/>
 				<Route path="/admin/*" element={<AdminPage session={session} />} />
 

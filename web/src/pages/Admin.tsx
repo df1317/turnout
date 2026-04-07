@@ -174,7 +174,7 @@ export function AdminPage({ session }: { session: Session }) {
 							</div>
 							{importResult && (
 								<p
-									className={`text-sm font-medium ${importResult.includes("Successfully") ? "text-green-600 dark:text-green-500" : "text-amber-600 dark:text-amber-500"}`}
+									className={`font-medium text-sm ${importResult.includes("Successfully") ? "text-green-600 dark:text-green-500" : "text-amber-600 dark:text-amber-500"}`}
 								>
 									{importResult}
 								</p>
@@ -256,34 +256,34 @@ export function AdminPage({ session }: { session: Session }) {
 							{stats ? (
 								<div className="grid grid-cols-2 gap-4">
 									<div>
-										<p className="text-sm font-medium">Users</p>
-										<p className="text-2xl font-bold">{stats.users}</p>
+										<p className="font-medium text-sm">Users</p>
+										<p className="font-bold text-2xl">{stats.users}</p>
 									</div>
 									<div>
-										<p className="text-sm font-medium">Active Meetings</p>
-										<p className="text-2xl font-bold">{stats.meetings}</p>
+										<p className="font-medium text-sm">Active Meetings</p>
+										<p className="font-bold text-2xl">{stats.meetings}</p>
 									</div>
 									<div>
-										<p className="text-sm font-medium">Past Meetings</p>
-										<p className="text-2xl font-bold">{stats.pastMeetings}</p>
+										<p className="font-medium text-sm">Past Meetings</p>
+										<p className="font-bold text-2xl">{stats.pastMeetings}</p>
 									</div>
 									<div>
-										<p className="text-sm font-medium">Queued Slack Updates</p>
-										<p className="text-2xl font-bold">
+										<p className="font-medium text-sm">Queued Slack Updates</p>
+										<p className="font-bold text-2xl">
 											{stats.pendingAnnouncements}
 										</p>
 									</div>
 									<div>
-										<p className="text-sm font-medium">CDTs</p>
-										<p className="text-2xl font-bold">{stats.cdts}</p>
+										<p className="font-medium text-sm">CDTs</p>
+										<p className="font-bold text-2xl">{stats.cdts}</p>
 									</div>
 									<div>
-										<p className="text-sm font-medium">RSVPs</p>
-										<p className="text-2xl font-bold">{stats.attendance}</p>
+										<p className="font-medium text-sm">RSVPs</p>
+										<p className="font-bold text-2xl">{stats.attendance}</p>
 									</div>
 								</div>
 							) : (
-								<p className="text-sm text-muted-foreground">Loading...</p>
+								<p className="text-muted-foreground text-sm">Loading...</p>
 							)}
 						</CardContent>
 					</Card>

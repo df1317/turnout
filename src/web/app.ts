@@ -35,12 +35,25 @@ export function createWebApp(_env: Env) {
 	app.route("/api/auth", authRoutes);
 
 	// Public calendar feed
-	app.get("/calendar.ics", async (c) => {
+	app.get("/api/calendar/:filename", async (c) => {
+		const filename = c.req.param("filename");
+		const token = filename?.replace(/\.ics$/, "");
+		if (!token) return c.text("Not found", 404);
+
+		const user = await c.env.DB.prepare(
+			"SELECT user_id, name FROM slack_user WHERE LOWER(calendar_token) = LOWER(?)",
+		)
+			.bind(token)
+			.first<{ user_id: string; name: string }>();
+
+		if (!user) return c.text("Not found", 404);
+
 		const rows = await c.env.DB.prepare(
-			`SELECT name, description, scheduled_at, end_time, cancelled
+			`SELECT id, name, description, scheduled_at, end_time, cancelled
 			 FROM meeting
 			 ORDER BY scheduled_at ASC`,
 		).all<{
+			id: number;
 			name: string;
 			description: string;
 			scheduled_at: number;
@@ -53,25 +66,27 @@ export function createWebApp(_env: Env) {
 		ics += "PRODID:-//SirSnap//Calendar//EN\r\n";
 		ics += "CALSCALE:GREGORIAN\r\n";
 		ics += "METHOD:PUBLISH\r\n";
-		ics += "X-WR-CALNAME:SirSnap Events\r\n";
+		ics += `X-WR-CALNAME:SirSnap Events (${user.name})\r\n`;
 
-		const now =
-			new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+		const now = `${new Date().toISOString().replace(/[-:]/g, "").split(".")[0]}Z`;
+		const baseUrl = new URL(c.req.url).origin;
 
 		for (const m of rows.results) {
-			const start =
+			const start = `${
 				new Date(m.scheduled_at * 1000)
 					.toISOString()
 					.replace(/[-:]/g, "")
-					.split(".")[0] + "Z";
+					.split(".")[0]
+			}Z`;
 
 			// Default to 3 hours if no end time is specified
 			const endTimeSeconds = m.end_time || m.scheduled_at + 3 * 60 * 60;
-			const end =
+			const end = `${
 				new Date(endTimeSeconds * 1000)
 					.toISOString()
 					.replace(/[-:]/g, "")
-					.split(".")[0] + "Z";
+					.split(".")[0]
+			}Z`;
 
 			ics += "BEGIN:VEVENT\r\n";
 			ics += `DTSTAMP:${now}\r\n`;
@@ -80,8 +95,14 @@ export function createWebApp(_env: Env) {
 			ics += `DTEND:${end}\r\n`;
 			ics += `SUMMARY:${m.cancelled === 1 ? "[CANCELED] " : ""}${m.name.replace(/\r?\n/g, "\\n")}\r\n`;
 
-			if (m.description) {
-				ics += `DESCRIPTION:${m.description.replace(/\r?\n/g, "\\n")}\r\n`;
+			let desc = m.description || "";
+			if (m.cancelled !== 1) {
+				const rsvpLinks = `\\n\\nRSVP Here: ${baseUrl}/rsvp/${m.id}/${token}`;
+				desc += rsvpLinks;
+			}
+
+			if (desc) {
+				ics += `DESCRIPTION:${desc.replace(/\r?\n/g, "\\n")}\r\n`;
 			}
 
 			if (m.cancelled === 1) {
@@ -97,8 +118,8 @@ export function createWebApp(_env: Env) {
 
 		return c.text(ics, 200, {
 			"Content-Type": "text/calendar; charset=utf-8",
-			"Content-Disposition": 'attachment; filename="calendar.ics"',
-			"Cache-Control": "public, max-age=3600",
+			"Content-Disposition": 'inline; filename="calendar.ics"',
+			"Cache-Control": "no-cache",
 		});
 	});
 
@@ -116,6 +137,7 @@ export function createWebApp(_env: Env) {
 			avatar_url: s.avatar_url,
 			is_admin: s.is_admin === 1,
 			role: s.role,
+			calendar_token: s.calendar_token,
 		});
 	});
 
@@ -188,6 +210,71 @@ export function createWebApp(_env: Env) {
 		);
 	});
 
+	api.get("/meetings/:id/:token", async (c) => {
+		const id = Number(c.req.param("id"));
+		const token = c.req.param("token");
+
+		const user = await c.env.DB.prepare(
+			"SELECT user_id FROM slack_user WHERE LOWER(calendar_token) = LOWER(?)",
+		)
+			.bind(token)
+			.first<{ user_id: string }>();
+
+		if (!user) return c.json({ error: "Unauthorized" }, 401);
+
+		const row = await c.env.DB.prepare(
+			`SELECT m.id, m.name, m.description, m.scheduled_at, m.end_time, a.status AS my_status, a.note AS my_note,
+              (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'yes') AS yes_count,
+              (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'maybe') AS maybe_count,
+              (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'no') AS no_count
+       FROM meeting m
+       LEFT JOIN attendance a ON a.meeting_id = m.id AND a.user_id = ?
+       WHERE m.id = ?`,
+		)
+			.bind(user.user_id, id)
+			.first<Record<string, unknown>>();
+
+		if (!row) {
+			return c.json({ error: "Not found" }, 404);
+		}
+
+		return c.json({
+			...row,
+			yes_count: Number(row.yes_count || 0),
+			maybe_count: Number(row.maybe_count || 0),
+			no_count: Number(row.no_count || 0),
+		});
+	});
+
+	api.get("/meetings/:id", requireSession(), async (c) => {
+		// biome-ignore lint/style/noNonNullAssertion: requireSession() middleware guarantees session exists
+		const session = c.get("session")!;
+		const id = Number(c.req.param("id"));
+
+		const row = await c.env.DB.prepare(
+			`SELECT m.id, m.name, m.description, m.scheduled_at, m.end_time, a.status AS my_status, a.note AS my_note,
+              (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'yes') AS yes_count,
+              (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'maybe') AS maybe_count,
+              (SELECT COUNT(*) FROM attendance WHERE meeting_id = m.id AND status = 'no') AS no_count
+       FROM meeting m
+       LEFT JOIN attendance a ON a.meeting_id = m.id AND a.user_id = ?
+       WHERE m.id = ?`,
+		)
+			.bind(session.user_id, id)
+			.first<Record<string, unknown>>();
+
+		if (!row) {
+			return c.json({ error: "Not found" }, 404);
+		}
+
+		return c.json({
+			...row,
+			yes_count: Number(row.yes_count || 0),
+			maybe_count: Number(row.maybe_count || 0),
+			no_count: Number(row.no_count || 0),
+		});
+	});
+
 	api.get("/meetings/past", requireSession(), async (c) => {
 		// biome-ignore lint/style/noNonNullAssertion: guaranteed by requireSession
 		const session = c.get("session")!;
@@ -213,6 +300,42 @@ export function createWebApp(_env: Env) {
 				no_count: Number(r.no_count || 0),
 			})),
 		);
+	});
+
+	api.post("/rsvp/:meetingId/:token", async (c) => {
+		const token = c.req.param("token");
+		const meetingId = Number(c.req.param("meetingId"));
+		const { status, note = "" } = await c.req.json<{
+			status: string;
+			note?: string;
+		}>();
+
+		if (!["yes", "maybe", "no"].includes(status))
+			return c.json({ error: "Invalid status" }, 400);
+
+		const user = await c.env.DB.prepare(
+			"SELECT user_id FROM slack_user WHERE LOWER(calendar_token) = LOWER(?)",
+		)
+			.bind(token)
+			.first<{ user_id: string }>();
+
+		if (!user) return c.json({ error: "Unauthorized" }, 401);
+
+		const now = Math.floor(Date.now() / 1000);
+
+		await c.env.DB.batch([
+			c.env.DB.prepare(
+				`INSERT INTO attendance (meeting_id, user_id, status, note)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT (meeting_id, user_id) DO UPDATE SET status = excluded.status, note = excluded.note`,
+			).bind(meetingId, user.user_id, status, note),
+			c.env.DB.prepare(
+				`INSERT INTO pending_announcement (meeting_id, queued_at) VALUES (?, ?)
+				 ON CONFLICT (meeting_id) DO UPDATE SET queued_at = excluded.queued_at`,
+			).bind(meetingId, now),
+		]);
+
+		return c.json({ ok: true });
 	});
 
 	api.post("/rsvp/:meetingId", requireSession(), async (c) => {

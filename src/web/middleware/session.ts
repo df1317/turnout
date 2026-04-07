@@ -8,6 +8,7 @@ export type Session = {
 	avatar_url: string;
 	is_admin: number;
 	role: string | null;
+	calendar_token: string | null;
 };
 
 type Variables = { session: Session | null };
@@ -20,7 +21,7 @@ export const sessionMiddleware = createMiddleware<{
 	if (token) {
 		const now = Math.floor(Date.now() / 1000);
 		const row = await c.env.DB.prepare(
-			`SELECT s.user_id, u.name, u.avatar_url, u.is_admin, u.role
+			`SELECT s.user_id, u.name, u.avatar_url, u.is_admin, u.role, u.calendar_token
          FROM web_session s JOIN slack_user u ON u.user_id = s.user_id
          WHERE s.id = ? AND s.expires_at > ?`,
 		)
