@@ -354,42 +354,17 @@ function AdminCdtsView() {
 								<span className="text-muted-foreground">(optional)</span>
 							</label>
 							<UserPicker
-								onSelect={(u) => setNewMembers([...newMembers, u])}
-								excludeIds={newMembers.map((m) => m.user_id)}
+								selectedIds={newMembers.map((m) => m.user_id)}
+								onToggle={(u, isSelected) => {
+									if (isSelected) {
+										setNewMembers([...newMembers, u]);
+									} else {
+										setNewMembers(newMembers.filter((m) => m.user_id !== u.user_id));
+									}
+								}}
+								onClear={() => setNewMembers([])}
 								filter={(u) => u.cdt_id === null || u.cdt_id === ""}
 							/>
-							{newMembers.length > 0 && (
-								<ul className="space-y-1.5 mt-2">
-									{newMembers.map((m) => (
-										<li
-											key={m.user_id}
-											className="flex items-center justify-between gap-2 p-1.5 rounded-md border bg-card"
-										>
-											<div className="flex items-center gap-2">
-												<Avatar size="sm" className="size-5">
-													<AvatarImage src={m.avatar_url} />
-													<AvatarFallback className="text-[10px]">
-														{m.name[0]}
-													</AvatarFallback>
-												</Avatar>
-												<span className="text-xs font-medium">{m.name}</span>
-											</div>
-											<Button
-												variant="ghost"
-												size="icon-sm"
-												className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
-												onClick={() =>
-													setNewMembers(
-														newMembers.filter((x) => x.user_id !== m.user_id),
-													)
-												}
-											>
-												<Trash2 className="size-3" />
-											</Button>
-										</li>
-									))}
-								</ul>
-							)}
 						</div>
 					</div>
 					<DialogFooter>
@@ -451,42 +426,23 @@ function AdminCdtsView() {
 									</p>
 								</div>
 								<UserPicker
-									onSelect={handleAddMember}
-									excludeIds={editDetail.members.map((m) => m.user_id)}
+									selectedIds={editDetail.members.map((m) => m.user_id)}
+									onToggle={(u, isSelected) => {
+										if (isSelected) {
+											handleAddMember(u);
+										} else {
+											handleRemoveMember(u.user_id);
+										}
+									}}
+									onClear={async () => {
+										if (!editDetail) return;
+										const idsToRemove = editDetail.members.map(m => m.user_id);
+										for (const id of idsToRemove) {
+											await handleRemoveMember(id);
+										}
+									}}
 									filter={(u) => u.cdt_id === null || u.cdt_id === ""}
 								/>
-								{editDetail.members.length === 0 ? (
-									<p className="text-xs text-muted-foreground pt-1">
-										No members yet.
-									</p>
-								) : (
-									<ul className="space-y-1.5 mt-2">
-										{editDetail.members.map((m) => (
-											<li
-												key={m.user_id}
-												className="flex items-center justify-between gap-2 p-1.5 rounded-md border bg-card"
-											>
-												<div className="flex items-center gap-2">
-													<Avatar size="sm" className="size-5">
-														<AvatarImage src={m.avatar_url} />
-														<AvatarFallback className="text-[10px]">
-															{m.name[0]}
-														</AvatarFallback>
-													</Avatar>
-													<span className="text-xs font-medium">{m.name}</span>
-												</div>
-												<Button
-													variant="ghost"
-													size="icon-sm"
-													className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
-													onClick={() => handleRemoveMember(m.user_id)}
-												>
-													<Trash2 className="size-3" />
-												</Button>
-											</li>
-										))}
-									</ul>
-								)}
 							</div>
 						</div>
 					) : null}
