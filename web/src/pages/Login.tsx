@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "../components/ui/button";
 import { LogIn } from "lucide-react";
+import { Footer } from "../components/Footer";
 
 export function LoginPage() {
 	const [loading, setLoading] = useState(false);
@@ -50,6 +51,10 @@ export function LoginPage() {
 						</>
 					)}
 				</Button>
+			</div>
+			
+			<div className="absolute bottom-0 left-0 w-full">
+				<Footer />
 			</div>
 		</div>
 	);

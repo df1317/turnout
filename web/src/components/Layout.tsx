@@ -1,6 +1,7 @@
 import { type Session } from "../lib/api";
 import { Button } from "./ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
+import { Footer } from "./Footer";
 
 const path = () => window.location.pathname;
 
@@ -31,7 +32,7 @@ export function Layout({
 	);
 
 	return (
-		<div className="min-h-screen bg-background">
+		<div className="min-h-screen bg-background flex flex-col">
 			<header className="sticky top-0 z-50 w-full border-b border-border/60 bg-white/80 backdrop-blur-md">
 				<div className="max-w-5xl mx-auto px-5 h-[52px] flex items-center justify-between">
 					<div className="flex items-center gap-5">
@@ -79,7 +80,11 @@ export function Layout({
 				</div>
 			</header>
 
-			<main className="max-w-5xl mx-auto px-5 py-8">{children}</main>
+			<main className="max-w-5xl mx-auto px-5 py-8 w-full flex-grow">
+				{children}
+			</main>
+
+			<Footer />
 		</div>
 	);
 }
