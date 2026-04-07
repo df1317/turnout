@@ -9,7 +9,7 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChannelPicker } from "../components/ChannelPicker";
 import { DataTable } from "../components/data-table";
 import { Layout } from "../components/Layout";
@@ -254,7 +254,6 @@ function CreateMeetingDialog({
 								Date <span className="text-destructive">*</span>
 							</label>
 							<DatePicker
-								id="date-picker"
 								date={date}
 								onSelect={handleDateSelect}
 								placeholder="Pick a date"
@@ -293,7 +292,6 @@ function CreateMeetingDialog({
 							<span className="text-muted-foreground">(for announcement)</span>
 						</label>
 						<ChannelPicker
-							id="channel-picker"
 							value={channel}
 							onChange={setChannel}
 						/>
@@ -349,7 +347,6 @@ function CreateMeetingDialog({
 										End date <span className="text-destructive">*</span>
 									</label>
 									<DatePicker
-										id="end-date-picker"
 										date={endDate}
 										onSelect={setEndDate}
 										placeholder="Pick end date"

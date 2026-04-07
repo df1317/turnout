@@ -367,7 +367,6 @@ function AdminCdtsView() {
 								<span className="text-muted-foreground">(optional)</span>
 							</label>
 							<ChannelPicker
-								id="channel-picker"
 								value={newChannelId}
 								onChange={setNewChannelId}
 							/>
@@ -378,7 +377,6 @@ function AdminCdtsView() {
 								<span className="text-muted-foreground">(optional)</span>
 							</label>
 							<UserPicker
-								id="user-picker"
 								selectedIds={newMembers.map((m) => m.user_id)}
 								selectedUsers={newMembers}
 								onToggle={(u, isSelected) => {
@@ -455,7 +453,6 @@ function AdminCdtsView() {
 									Slack Channel
 								</label>
 								<ChannelPicker
-									id="edit-channel"
 									value={editChannelId}
 									onChange={setEditChannelId}
 								/>
@@ -468,7 +465,6 @@ function AdminCdtsView() {
 									</label>
 								</div>
 								<UserPicker
-									id="edit-members"
 									selectedIds={editMembers.map((m) => m.user_id)}
 									selectedUsers={editMembers}
 									onToggle={(u, isSelected) => {
