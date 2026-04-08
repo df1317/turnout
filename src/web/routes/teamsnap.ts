@@ -229,11 +229,12 @@ teamsnap.get("/sync", requireAdmin(), async (c) => {
 		}
 
 		if (meetingInserts.length > 0) {
-			await db
-				.insert(meeting)
-				.values(meetingInserts)
-				.onConflictDoNothing()
-				.run();
+			// Chunk inserts to avoid D1 max parameter limit (SQLite limit is 100 or 999 vars)
+			const CHUNK_SIZE = 100;
+			for (let i = 0; i < meetingInserts.length; i += CHUNK_SIZE) {
+				const chunk = meetingInserts.slice(i, i + CHUNK_SIZE);
+				await db.insert(meeting).values(chunk).onConflictDoNothing().run();
+			}
 		}
 
 		const allMeetingsRes = await db
