@@ -86,10 +86,10 @@ export function createWebApp(_env: Env) {
 
 		let ics = "BEGIN:VCALENDAR\r\n";
 		ics += "VERSION:2.0\r\n";
-		ics += "PRODID:-//SirSnap//Calendar//EN\r\n";
+		ics += "PRODID:-//Turnout//Calendar//EN\r\n";
 		ics += "CALSCALE:GREGORIAN\r\n";
 		ics += "METHOD:PUBLISH\r\n";
-		ics += `X-WR-CALNAME:SirSnap Events (${user.name})\r\n`;
+		ics += `X-WR-CALNAME:Turnout Events (${user.name})\r\n`;
 
 		const now = `${new Date().toISOString().replace(/[-:]/g, "").split(".")[0]}Z`;
 		const baseUrl = new URL(c.req.url).origin;
@@ -113,7 +113,7 @@ export function createWebApp(_env: Env) {
 
 			ics += "BEGIN:VEVENT\r\n";
 			ics += `DTSTAMP:${now}\r\n`;
-			ics += `UID:sirsnap-event-${m.scheduled_at}-${encodeURIComponent(m.name.replace(/\s+/g, "-"))}@sirsnap\r\n`;
+			ics += `UID:turnout-event-${m.scheduled_at}-${encodeURIComponent(m.name.replace(/\s+/g, "-"))}@turnout\r\n`;
 			ics += `DTSTART:${start}\r\n`;
 			ics += `DTEND:${end}\r\n`;
 			ics += `SUMMARY:${m.cancelled === 1 ? "[CANCELED] " : ""}${m.name.replace(/\r?\n/g, "\\n")}\r\n`;

@@ -7,11 +7,19 @@ export function Footer() {
 				<div className="flex items-center gap-1.5">
 					<span>Made with</span>
 					<span className="text-red-500">❤️</span>
-					<span>by the Digital Fusion programming team</span>
+					<span>by</span>
+					<a
+						href="https://www.team1317.org/"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="transition-colors hover:text-foreground"
+					>
+						Digital Fusion
+					</a>
 				</div>
 				<div className="flex items-center gap-3">
 					<a
-						href={`https://github.com/df1317/sirsnap/commit/${__COMMIT_HASH__}`}
+						href={`https://github.com/df1317/turnout/commit/${__COMMIT_HASH__}`}
 						target="_blank"
 						rel="noopener noreferrer"
 						className="font-mono transition-colors hover:text-foreground"

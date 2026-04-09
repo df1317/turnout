@@ -1,4 +1,4 @@
-# SirSnap 🦆
+# Turnout
 
 ![screenshot of the page](https://cdn.hackclub.com/019d6a16-bcec-7720-8162-56705f73a21e/image.png)
 
@@ -16,7 +16,7 @@ You can either:
 2. Choose "From an app manifest"
 3. Select your workspace
 4. Copy the contents of `manifest.yaml` and paste it
-5. The manifest is already configured to use `https://sirsnap.bore.dunkirk.sh/slack`
+5. The manifest is already configured to use `https://turnout.bore.dunkirk.sh/slack`
 6. Create the app
 
 **Option B: Manual Setup**
@@ -64,23 +64,23 @@ bun wrangler secret put SLACK_BOT_TOKEN
 Add slash commands in your Slack app:
 
 - Command: `/meetings`
-- Request URL: `https://sirsnap.bore.dunkirk.sh/slack`
+- Request URL: `https://turnout.bore.dunkirk.sh/slack`
 - Description: "Manage meetings (admin only)"
 
 - Command: `/setrole`
-- Request URL: `https://sirsnap.bore.dunkirk.sh/slack`
+- Request URL: `https://turnout.bore.dunkirk.sh/slack`
 - Description: "Set a user's role (admin only)"
 - Usage hint: `[@user] [student|parent|alumni|mentor]`
 
 - Command: `/cdt`
-- Request URL: `https://sirsnap.bore.dunkirk.sh/slack`
+- Request URL: `https://turnout.bore.dunkirk.sh/slack`
 - Description: "Manage Component Design Teams (admin only)"
 
 #### Event Subscriptions
 
 Enable event subscriptions:
 
-- Request URL: `https://sirsnap.bore.dunkirk.sh/slack`
+- Request URL: `https://turnout.bore.dunkirk.sh/slack`
 - Subscribe to bot events:
   - `app_mention`
   - `message.im`
@@ -89,7 +89,7 @@ Enable event subscriptions:
 
 Enable interactive components:
 
-- Request URL: `https://sirsnap.bore.dunkirk.sh/slack`
+- Request URL: `https://turnout.bore.dunkirk.sh/slack`
 
 ## Development
 
@@ -115,12 +115,12 @@ bun deploy
 
 ## Deployment for other FRC teams
 
-SirSnap can be deployed by any FRC team using Cloudflare Workers. 
+Turnout can be deployed by any FRC team using Cloudflare Workers. 
 
 1. Create a Cloudflare account
-2. Initialize a D1 database: `bunx wrangler d1 create sirsnap`
+2. Initialize a D1 database: `bunx wrangler d1 create turnout`
 3. Update `wrangler.jsonc` with your new database ID
-4. Apply the schema: `bunx wrangler d1 execute sirsnap --local --file=schema.sql` and `bunx wrangler d1 execute sirsnap --remote --file=schema.sql`
+4. Apply the schema: `bunx wrangler d1 execute turnout --local --file=schema.sql` and `bunx wrangler d1 execute turnout --remote --file=schema.sql`
 5. Configure your Slack App following the setup steps above
 6. Add your secrets:
 ```bash
@@ -174,5 +174,5 @@ bunx wrangler secret put SLACK_PROFILE_FIELD_ROLE
 </p>
 
 <p align="center">
-    <a href="https://github.com/df1317/sirsnap/blob/main/LICENSE.md"><img src="https://img.shields.io/static/v1.svg?style=for-the-badge&label=License&message=O'Saasy&logoColor=d9e0ee&colorA=363a4f&colorB=b7bdf8"/></a>
+    <a href="https://github.com/df1317/turnout/blob/main/LICENSE.md"><img src="https://img.shields.io/static/v1.svg?style=for-the-badge&label=License&message=O'Saasy&logoColor=d9e0ee&colorA=363a4f&colorB=b7bdf8"/></a>
 </p>

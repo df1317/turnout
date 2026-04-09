@@ -233,7 +233,7 @@ export function AdminPage({ session }: { session: Session }) {
 							</CardTitle>
 							<CardDescription>
 								Import past events and attendance data from TeamSnap into
-								SirSnap.
+								Turnout.
 							</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">

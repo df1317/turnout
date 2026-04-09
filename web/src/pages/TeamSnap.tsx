@@ -120,7 +120,7 @@ export function TeamSnapPage({ session }: { session: Session }) {
 						TeamSnap Import
 					</h1>
 					<p className="mt-0.5 text-muted-foreground text-sm">
-						Import past events and attendance data from TeamSnap into SirSnap.
+						Import past events and attendance data from TeamSnap into Turnout.
 					</p>
 				</div>
 
@@ -181,7 +181,7 @@ export function TeamSnapPage({ session }: { session: Session }) {
 							<div>
 								<CardTitle>Member Mapping</CardTitle>
 								<CardDescription>
-									Map TeamSnap members to SirSnap users.
+									Map TeamSnap members to Turnout users.
 								</CardDescription>
 							</div>
 							<Button
@@ -202,7 +202,7 @@ export function TeamSnapPage({ session }: { session: Session }) {
 												TeamSnap Member
 											</th>
 											<th className="h-10 px-4 align-middle font-medium text-muted-foreground">
-												SirSnap User
+												Turnout User
 											</th>
 										</tr>
 									</thead>

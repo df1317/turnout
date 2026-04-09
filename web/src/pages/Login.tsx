@@ -42,14 +42,14 @@ export function LoginPage() {
 				<div className="mx-auto h-24 w-24 overflow-hidden rounded-2xl border border-zinc-200/50 shadow-primary/10 shadow-xl">
 					<img
 						src="/sir.jpeg"
-						alt="Sirsnap Logo"
+						alt="Turnout Logo"
 						className="h-full w-full object-cover"
 					/>
 				</div>
 
 				<div className="space-y-3">
 					<h1 className="bg-gradient-to-br from-zinc-900 to-zinc-600 bg-clip-text font-bold text-3xl text-transparent tracking-tight">
-						Welcome to Sirsnap
+						Welcome to Turnout
 					</h1>
 					<p className="text-sm text-zinc-500">
 						Please sign in with your Slack account to continue.

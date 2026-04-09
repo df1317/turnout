@@ -39,11 +39,11 @@ export function Layout({
 						<Link to="/" className="flex shrink-0 items-center gap-2">
 							<img
 								src="/favicon-32x32.png"
-								alt="Sirsnap Logo"
+								alt="Turnout Logo"
 								className="h-6 w-6 rounded-md object-contain"
 							/>
 							<span className="font-semibold text-[13px] tracking-tight">
-								Sirsnap
+								Turnout
 							</span>
 						</Link>
 						<nav className="flex items-center">
