@@ -12,6 +12,7 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ChannelPicker } from "../components/ChannelPicker";
 import { DataTable } from "../components/data-table";
 import { Layout } from "../components/Layout";
@@ -608,6 +609,7 @@ function MeetingAttendanceDialog({
 }
 
 function AdminMeetingsView() {
+	const navigate = useNavigate();
 	const [meetings, setMeetings] = useState<AdminMeeting[]>([]);
 	const [createOpen, setCreateOpen] = useState(false);
 	const [editMeeting, setEditMeeting] = useState<AdminMeeting | null>(null);
@@ -876,7 +878,7 @@ function AdminMeetingsView() {
 				columns={columns}
 				data={meetings}
 				filterPlaceholder="Filter meetings…"
-				onRowClick={(m) => setViewAttendanceMeeting(m)}
+				onRowClick={(m) => navigate(`/meetings/${m.id}`)}
 				enableRowSelection
 				onSelectionChange={setSelectedMeetings}
 				extraToolbarAction={
@@ -926,6 +928,8 @@ function UpcomingMeetingsView({
 		null,
 	);
 	const [saving, setSaving] = useState(false);
+
+	const navigate = useNavigate();
 
 	const handleBulkUpdate = async () => {
 		if (!bulkStatus || selectedMeetings.length === 0 || saving) return;
@@ -1132,12 +1136,13 @@ function UpcomingMeetingsView({
 				filterPlaceholder="Filter upcoming meetings…"
 				enableRowSelection
 				onSelectionChange={setSelectedMeetings}
+				onRowClick={(m) => navigate(`/meetings/${m.id}`)}
 			/>
 		</div>
 	);
 }
 
-function PastMeetingsView({ isAdmin }: { isAdmin: boolean }) {
+function PastMeetingsView() {
 	const [meetings, setMeetings] = useState<Meeting[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [offset, setOffset] = useState(0);
@@ -1289,6 +1294,8 @@ function PastMeetingsView({ isAdmin }: { isAdmin: boolean }) {
 		[],
 	);
 
+	const navigate = useNavigate();
+
 	if (loading) {
 		return (
 			<div className="py-8 text-center text-muted-foreground text-sm">
@@ -1310,11 +1317,7 @@ function PastMeetingsView({ isAdmin }: { isAdmin: boolean }) {
 				columns={columns}
 				data={meetings}
 				filterPlaceholder="Filter past meetings…"
-				onRowClick={
-					isAdmin
-						? (m) => setViewAttendanceMeeting(m as unknown as AdminMeeting)
-						: undefined
-				}
+				onRowClick={(m) => navigate(`/meetings/${m.id}`)}
 			/>
 			{hasMore && (
 				<div id="load-more-trigger" className="mt-4 flex justify-center">
@@ -1552,7 +1555,7 @@ export function MeetingsPage({ session }: { session: Session }) {
 						{renderMeetingsList()}
 					</TabsContent>
 					<TabsContent value="past" className="mt-4">
-						<PastMeetingsView isAdmin={session.is_admin} />
+						<PastMeetingsView />
 					</TabsContent>
 					{session.is_admin && (
 						<TabsContent value="manage" className="mt-4">

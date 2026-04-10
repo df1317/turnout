@@ -51,11 +51,10 @@ teamsnap.get("/sync", requireAdmin(), async (c) => {
 
 	const CACHE_TTL = 10 * 60; // 10 minutes — enough time to review and re-submit
 
-	// biome-ignore lint/suspicious/noExplicitAny: TeamSnap API response shape
-	async function getCachedOrFetch(
+	async function getCachedOrFetch<T>(
 		key: string,
-		fetcher: () => Promise<any>,
-	): Promise<any> {
+		fetcher: () => Promise<T>,
+	): Promise<T> {
 		const now = Math.floor(Date.now() / 1000);
 		if (!bustCache) {
 			const cached = await db
@@ -308,11 +307,10 @@ teamsnap.get("/sync", requireAdmin(), async (c) => {
 				let status = "maybe";
 				if (statusCode === 1) status = "yes";
 				if (statusCode === 0) status = "no";
-				// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
 				attendanceInsertsMap.set(`${meetingId}-${slackUserId}`, {
 					meetingId,
 					userId: slackUserId,
-					status: status as any,
+					status: status as "yes" | "no" | "maybe",
 				});
 			}
 		}

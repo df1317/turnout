@@ -5,6 +5,7 @@ import { AdminPage } from "./pages/Admin";
 import { CdtsPage } from "./pages/Cdts";
 import { Dashboard } from "./pages/Dashboard";
 import { LoginPage } from "./pages/Login";
+import { MeetingPage } from "./pages/Meeting";
 import { MeetingsPage } from "./pages/Meetings";
 import { RsvpPage } from "./pages/Rsvp";
 import { TeamPage } from "./pages/Team";
@@ -181,6 +182,10 @@ export default function App() {
 			<Routes>
 				<Route path="/team/*" element={<TeamPage session={session} />} />
 				<Route path="/cdts/*" element={<CdtsPage session={session} />} />
+				<Route
+					path="/meetings/:id"
+					element={<MeetingPage session={session} />}
+				/>
 				<Route
 					path="/meetings/*"
 					element={<MeetingsPage session={session} />}
