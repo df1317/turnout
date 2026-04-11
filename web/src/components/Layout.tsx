@@ -48,7 +48,6 @@ export function Layout({
 							</span>
 						</Link>
 						<nav className="flex items-center">
-							{navLink("/", "Home")}
 							{navLink("/meetings", "Meetings")}
 							{navLink("/team", "Team")}
 							{navLink("/cdts", "CDTs")}
