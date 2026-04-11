@@ -274,7 +274,7 @@ function MeetingRow({ meeting }: { meeting: Meeting }) {
 	const weekday = d.toLocaleDateString("en-US", { weekday: "short" });
 
 	return (
-		<div className="flex items-center gap-4 px-4 py-3">
+		<div className="flex items-center gap-4 px-4 py-4">
 			<div className="flex w-10 shrink-0 flex-col items-center justify-start">
 				<span className="font-semibold text-[9px] text-primary uppercase tracking-widest">
 					{month}
@@ -505,7 +505,7 @@ export function Dashboard({ session }: { session: Session }) {
 								<h2 className="font-semibold text-[13px] text-muted-foreground uppercase tracking-wider">
 									Recent Meetings
 								</h2>
-								<Card className="overflow-hidden py-0">
+								<Card className="overflow-hidden py-0 gap-0">
 									{pastMeetings.map((m, i) => {
 										const d = new Date(m.scheduled_at * 1000);
 										const month = d
@@ -519,7 +519,7 @@ export function Dashboard({ session }: { session: Session }) {
 													to="/meetings"
 													className="block transition-colors hover:bg-muted/30"
 												>
-													<div className="flex items-center gap-3 px-4 py-2">
+													<div className="flex items-center gap-3 px-4 py-3.5">
 														<div className="flex w-10 shrink-0 flex-col items-center justify-start">
 															<span className="font-semibold text-[9px] text-primary uppercase tracking-widest">
 																{month}
@@ -574,7 +574,7 @@ export function Dashboard({ session }: { session: Session }) {
 						<h2 className="font-semibold text-[13px] text-muted-foreground uppercase tracking-wider">
 							Upcoming · {rest.length}
 						</h2>
-						<Card className="overflow-hidden py-0">
+						<Card className="overflow-hidden py-0 gap-0">
 							{rest.map((m, i) => (
 								<div key={m.id}>
 									<Link
