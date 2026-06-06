@@ -4,6 +4,15 @@ import { Hono } from "hono";
 import * as schema from "../../db/schema";
 import type { Env } from "../../index";
 
+/** Escape text per RFC 5545 §3.3.11: \ → \\, ; → \;, , → \,, newline → \n */
+function escapeIcsText(text: string): string {
+	return text
+		.replace(/\\/g, "\\\\")
+		.replace(/;/g, "\\;")
+		.replace(/,/g, "\\,")
+		.replace(/\r?\n/g, "\\n");
+}
+
 const calendar = new Hono<{ Bindings: Env }>();
 
 calendar.get("/:filename", async (c) => {
@@ -66,16 +75,15 @@ calendar.get("/:filename", async (c) => {
 		ics += `UID:turnout-event-${m.scheduled_at}-${encodeURIComponent(m.name.replace(/\s+/g, "-"))}@turnout\r\n`;
 		ics += `DTSTART:${start}\r\n`;
 		ics += `DTEND:${end}\r\n`;
-		ics += `SUMMARY:${m.cancelled === 1 ? "[CANCELED] " : ""}${m.name.replace(/\r?\n/g, "\\n")}\r\n`;
+		ics += `SUMMARY:${escapeIcsText(m.cancelled === 1 ? `[CANCELED] ${m.name}` : m.name)}\r\n`;
 
 		let desc = m.description || "";
 		if (m.cancelled !== 1) {
-			const rsvpLinks = `\\n\\nRSVP Here: ${baseUrl}/rsvp/${m.id}/${token}`;
-			desc += rsvpLinks;
+			desc += `\n\nRSVP Here: ${baseUrl}/rsvp/${m.id}/${token}`;
 		}
 
 		if (desc) {
-			ics += `DESCRIPTION:${desc.replace(/\r?\n/g, "\\n")}\r\n`;
+			ics += `DESCRIPTION:${escapeIcsText(desc)}\r\n`;
 		}
 
 		if (m.cancelled === 1) {
