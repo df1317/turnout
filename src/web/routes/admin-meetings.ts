@@ -17,6 +17,7 @@ import {
 	buildAnnouncementBlocks,
 	updateAnnouncement,
 } from "../../lib/announcements";
+import { generateDates } from "../../lib/recurrence";
 import { postWithJoin } from "../../lib/slack-utils";
 import type { Session } from "../middleware/session";
 
@@ -273,7 +274,6 @@ adminMeetings.post("/series", async (c) => {
 	if (!name || !days_of_week.length || !end_date)
 		return c.json({ error: "Missing fields" }, 400);
 
-	const { generateDates } = await import("../../lib/recurrence");
 	const dates = generateDates(
 		days_of_week,
 		time_of_day_minutes,

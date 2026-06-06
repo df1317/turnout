@@ -1,5 +1,3 @@
-declare const __COMMIT_HASH__: string;
-
 export function Footer() {
 	return (
 		<footer className="mt-auto border-border/60 border-t bg-white/40 py-6 backdrop-blur-sm">
