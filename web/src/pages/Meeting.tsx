@@ -108,14 +108,7 @@ export function MeetingPage({ session }: { session: Session }) {
 		if (!id) return;
 
 		Promise.all([
-			api.getMeetings().then((meetings) => {
-				const m = meetings.find((m) => m.id === Number(id));
-				if (m) return m as unknown as AdminMeeting;
-				// Fallback for admins looking at past meetings not in upcoming/recent list
-				return api
-					.getAdminMeetings()
-					.then((ams) => ams.find((am) => am.id === Number(id)));
-			}),
+			api.getMeeting(Number(id)).catch(() => null),
 			session.is_admin
 				? api.getMeetingAttendance(Number(id)).catch(() => null)
 				: Promise.resolve(null),
