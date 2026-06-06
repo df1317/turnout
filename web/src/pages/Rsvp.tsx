@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import { Check, ChevronLeft, HelpCircle, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
 import { Layout } from "../components/Layout";
 import { Button } from "../components/ui/button";
 import {
@@ -46,7 +47,7 @@ export function RsvpPage({ session }: { session: Session | null }) {
 				navigate("/meetings");
 			} else {
 				setSaving(false);
-				alert("RSVP Saved! You can close this page.");
+				toast.success("RSVP Saved! You can close this page.");
 			}
 		} catch (err) {
 			console.error(err);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { Toaster } from "./components/ui/sonner";
 import { api, type Session } from "./lib/api";
 import { AdminPage } from "./pages/Admin";
 import { CdtsPage } from "./pages/Cdts";
@@ -200,6 +201,7 @@ export default function App() {
 				<Route path="/" element={<Dashboard session={session} />} />
 				<Route path="*" element={<Navigate to="/" replace />} />
 			</Routes>
+			<Toaster position="top-right" richColors />
 		</BrowserRouter>
 	);
 }
