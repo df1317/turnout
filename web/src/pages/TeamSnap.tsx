@@ -34,11 +34,24 @@ interface SlackUser {
 	name: string;
 }
 
+interface TeamSnapSyncResult {
+	message?: string;
+	eventsFound?: number;
+	membersFound?: number;
+	matchedUsers?: number;
+	unmatchedUsers?: number;
+	attendanceRecordsInserted?: number;
+	lastSyncTime?: number;
+	unmatchedMembers?: UnmatchedMember[];
+	matchedMembers?: MatchedMember[];
+	slackUsers?: SlackUser[];
+	error?: string;
+}
+
 export function TeamSnapPage({ session }: { session: Session }) {
 	const [days, setDays] = useState("30");
 	const [loading, setLoading] = useState(false);
-	// biome-ignore lint/suspicious/noExplicitAny: API data
-	const [result, setResult] = useState<any>(null);
+	const [result, setResult] = useState<TeamSnapSyncResult | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
 	const [slackUsers, setSlackUsers] = useState<SlackUser[]>([]);
@@ -77,15 +90,12 @@ export function TeamSnapPage({ session }: { session: Session }) {
 				`/api/teamsnap/sync?days=${days}${manualMappingsParam}`,
 			);
 
-			// biome-ignore lint/suspicious/noExplicitAny: API data
-			let data: any;
+			let data: TeamSnapSyncResult;
 			const contentType = res.headers.get("content-type");
 			if (contentType?.includes("application/json")) {
-				data = await res.json();
-				console.log("TeamSnap API Response:", data);
+				data = (await res.json()) as TeamSnapSyncResult;
 			} else {
 				const text = await res.text();
-				console.error("TeamSnap API Non-JSON Response:", text);
 				throw new Error(
 					`Server returned non-JSON error: ${text.substring(0, 100)}`,
 				);
@@ -104,9 +114,8 @@ export function TeamSnapPage({ session }: { session: Session }) {
 			if (data.slackUsers) {
 				setSlackUsers(data.slackUsers);
 			}
-			// biome-ignore lint/suspicious/noExplicitAny: Error
-		} catch (e: any) {
-			setError(e.message || "An error occurred");
+		} catch (e: unknown) {
+			setError(e instanceof Error ? e.message : "An error occurred");
 		} finally {
 			setLoading(false);
 		}

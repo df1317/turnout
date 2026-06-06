@@ -56,36 +56,16 @@ import {
 	type MeetingAttendance,
 	type Session,
 } from "../lib/api";
+import {
+	CACHE_KEYS,
+	getCached,
+	invalidateCache,
+	setCached,
+} from "../lib/cache";
+import { formatDateTime as formatDate, fromUnix, toUnix } from "../lib/date";
 import { cn } from "../lib/utils";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-const formatDate = (unix: number) => {
-	const d = new Date(unix * 1000);
-	const isCurrentYear = d.getFullYear() === new Date().getFullYear();
-
-	let dateStr = d.toLocaleDateString("en-US", {
-		weekday: "short",
-		month: "short",
-		day: "numeric",
-	});
-
-	if (!isCurrentYear) {
-		dateStr += `, ${d.getFullYear()}`;
-	}
-
-	return (
-		dateStr +
-		" · " +
-		d.toLocaleTimeString("en-US", {
-			hour: "numeric",
-			minute: "2-digit",
-		})
-	);
-};
-
-const fromUnix = (unix: number) => new Date(unix * 1000);
-const toUnix = (d: Date) => Math.floor(d.getTime() / 1000);
 
 function DatePicker({
 	date,
@@ -194,6 +174,7 @@ function CreateMeetingDialog({
 					time_of_day_minutes: timeOfDayMinutes,
 					end_date: endSeriesUnix,
 				});
+				invalidateCache(CACHE_KEYS.meetings, CACHE_KEYS.pastMeetings);
 				onCreated(created);
 			} else {
 				const created = await api.createMeeting({
@@ -203,6 +184,7 @@ function CreateMeetingDialog({
 					end_time: endUnix,
 					channel_id: channel || undefined,
 				});
+				invalidateCache(CACHE_KEYS.meetings, CACHE_KEYS.pastMeetings);
 				onCreated(created);
 			}
 
@@ -438,6 +420,7 @@ function EditMeetingDialog({
 				scheduled_at: scheduledAt,
 				end_time: endUnix,
 			});
+			invalidateCache(CACHE_KEYS.meetings);
 			onSaved({
 				...meeting,
 				name: name.trim() || meeting.name,
@@ -646,6 +629,7 @@ function AdminMeetingsView() {
 
 	const handleDelete = useCallback(async (id: number) => {
 		await api.deleteMeeting(id);
+		invalidateCache(CACHE_KEYS.meetings, CACHE_KEYS.pastMeetings);
 		setMeetings((prev) => prev.filter((x) => x.id !== id));
 	}, []);
 
@@ -664,6 +648,7 @@ function AdminMeetingsView() {
 					});
 				}),
 			);
+			invalidateCache(CACHE_KEYS.meetings);
 
 			setMeetings((prev) =>
 				prev.map((m) => {
@@ -916,6 +901,40 @@ function AdminMeetingsView() {
 	);
 }
 
+function NoteEditor({
+	meeting,
+	onUpdate,
+}: {
+	meeting: Meeting;
+	onUpdate: (id: number, status: string, note: string) => void;
+}) {
+	const [note, setNote] = useState(meeting.my_note ?? "");
+	return (
+		<div className="space-y-2">
+			<h4 className="font-medium text-xs">Note for {meeting.name}</h4>
+			<Textarea
+				value={note}
+				onChange={(e) => setNote(e.target.value)}
+				className="resize-none text-xs"
+				rows={2}
+				placeholder="Add a note..."
+			/>
+			<div className="flex justify-end">
+				<Button
+					size="sm"
+					onClick={async () => {
+						await api.rsvp(meeting.id, meeting.my_status || "yes", note);
+						invalidateCache(CACHE_KEYS.meetings);
+						onUpdate(meeting.id, meeting.my_status || "yes", note);
+					}}
+				>
+					Save
+				</Button>
+			</div>
+		</div>
+	);
+}
+
 function UpcomingMeetingsView({
 	meetings,
 	onUpdate,
@@ -938,6 +957,7 @@ function UpcomingMeetingsView({
 			await Promise.all(
 				selectedMeetings.map((m) => api.rsvp(m.id, bulkStatus, "")),
 			);
+			invalidateCache(CACHE_KEYS.meetings);
 			for (const m of selectedMeetings) {
 				onUpdate(m.id, bulkStatus, "");
 			}
@@ -1021,6 +1041,7 @@ function UpcomingMeetingsView({
 											onClick={async (e) => {
 												e.stopPropagation();
 												await api.rsvp(m.id, s, m.my_note ?? "");
+												invalidateCache(CACHE_KEYS.meetings);
 												onUpdate(m.id, s, m.my_note ?? "");
 											}}
 										>
@@ -1052,32 +1073,7 @@ function UpcomingMeetingsView({
 									className="w-64 p-3"
 									onClick={(e) => e.stopPropagation()}
 								>
-									<div className="space-y-2">
-										<h4 className="font-medium text-xs">Note for {m.name}</h4>
-										<Textarea
-											id={`note-${m.id}`}
-											defaultValue={m.my_note ?? ""}
-											className="resize-none text-xs"
-											rows={2}
-											placeholder="Add a note..."
-										/>
-										<div className="flex justify-end">
-											<Button
-												size="sm"
-												onClick={async () => {
-													const val = (
-														document.getElementById(
-															`note-${m.id}`,
-														) as HTMLTextAreaElement
-													).value;
-													await api.rsvp(m.id, m.my_status || "yes", val);
-													onUpdate(m.id, m.my_status || "yes", val);
-												}}
-											>
-												Save
-											</Button>
-										</div>
-									</div>
+									<NoteEditor meeting={m} onUpdate={onUpdate} />
 								</PopoverContent>
 							</Popover>
 						</div>
@@ -1353,15 +1349,15 @@ export function MeetingsPage({ session }: { session: Session }) {
 	};
 
 	useEffect(() => {
-		const cached = sessionStorage.getItem("meetings_cache");
+		const cached = getCached<Meeting[]>(CACHE_KEYS.meetings);
 		if (cached) {
-			setMeetings(JSON.parse(cached));
+			setMeetings(cached);
 			setLoading(false);
 		}
 
 		api.getMeetings().then((m) => {
 			setMeetings(m);
-			sessionStorage.setItem("meetings_cache", JSON.stringify(m));
+			setCached(CACHE_KEYS.meetings, m);
 			setLoading(false);
 		});
 	}, []);

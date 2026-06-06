@@ -37,14 +37,13 @@ import {
 	type Session,
 	type User,
 } from "../lib/api";
-
-const roleVariant: Record<string, "student" | "mentor" | "parent" | "alumni"> =
-	{
-		student: "student",
-		mentor: "mentor",
-		parent: "parent",
-		alumni: "alumni",
-	};
+import {
+	CACHE_KEYS,
+	getCached,
+	invalidateCache,
+	setCached,
+} from "../lib/cache";
+import { roleVariant } from "../lib/constants";
 
 const slugify = (name: string) =>
 	`${name
@@ -182,6 +181,7 @@ function AdminCdtsView() {
 				);
 			}
 			await refreshCdts();
+			invalidateCache(CACHE_KEYS.cdts, CACHE_KEYS.users);
 			setCreateOpen(false);
 			setNewName("");
 			setNewHandle("");
@@ -231,6 +231,7 @@ function AdminCdtsView() {
 				members: editMembers.map((m) => m.user_id),
 			});
 			await refreshCdts();
+			invalidateCache(CACHE_KEYS.cdts);
 			setEditOpen(false);
 			setEditDetail(null);
 		} catch (e: unknown) {
@@ -243,6 +244,7 @@ function AdminCdtsView() {
 	const handleDelete = async (id: string) => {
 		await api.deleteCdt(id);
 		await refreshCdts();
+		invalidateCache(CACHE_KEYS.cdts, CACHE_KEYS.users);
 	};
 
 	return (
@@ -511,20 +513,20 @@ export function CdtsPage({ session }: { session: Session }) {
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
-		const cachedUsers = sessionStorage.getItem("users_cache");
-		const cachedCdts = sessionStorage.getItem("cdts_cache");
+		const cachedUsers = getCached<User[]>(CACHE_KEYS.users);
+		const cachedCdts = getCached<Cdt[]>(CACHE_KEYS.cdts);
 
 		if (cachedUsers && cachedCdts) {
-			setUsers(JSON.parse(cachedUsers));
-			setCdts(JSON.parse(cachedCdts));
+			setUsers(cachedUsers);
+			setCdts(cachedCdts);
 			setLoading(false);
 		}
 
 		Promise.all([api.getUsers(), api.getCdts()]).then(([u, c]) => {
 			setUsers(u);
 			setCdts(c);
-			sessionStorage.setItem("users_cache", JSON.stringify(u));
-			sessionStorage.setItem("cdts_cache", JSON.stringify(c));
+			setCached(CACHE_KEYS.users, u);
+			setCached(CACHE_KEYS.cdts, c);
 			setLoading(false);
 		});
 	}, []);
