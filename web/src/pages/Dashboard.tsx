@@ -15,14 +15,13 @@ import {
 	type Session,
 	type User,
 } from "../lib/api";
-
-const roleVariant: Record<string, "student" | "mentor" | "parent" | "alumni"> =
-	{
-		student: "student",
-		mentor: "mentor",
-		parent: "parent",
-		alumni: "alumni",
-	};
+import {
+	CACHE_KEYS,
+	getCached,
+	invalidateCache,
+	setCached,
+} from "../lib/cache";
+import { roleVariant } from "../lib/constants";
 
 function FeaturedMeeting({
 	meeting,
@@ -45,6 +44,7 @@ function FeaturedMeeting({
 		setSaving(true);
 		try {
 			await api.rsvp(meeting.id, pending, note);
+			invalidateCache(CACHE_KEYS.meetings, CACHE_KEYS.pastMeetings);
 			onUpdate(meeting.id, pending, note);
 			setPending(null);
 		} finally {
@@ -328,16 +328,16 @@ export function Dashboard({ session }: { session: Session }) {
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
-		const cachedUsers = sessionStorage.getItem("users_cache");
-		const cachedCdts = sessionStorage.getItem("cdts_cache");
-		const cachedMeetings = sessionStorage.getItem("meetings_cache");
-		const cachedPastMeetings = sessionStorage.getItem("past_meetings_cache");
+		const cachedUsers = getCached<User[]>(CACHE_KEYS.users);
+		const cachedCdts = getCached<Cdt[]>(CACHE_KEYS.cdts);
+		const cachedMeetings = getCached<Meeting[]>(CACHE_KEYS.meetings);
+		const cachedPastMeetings = getCached<Meeting[]>(CACHE_KEYS.pastMeetings);
 
 		if (cachedUsers && cachedCdts && cachedMeetings && cachedPastMeetings) {
-			setUsers(JSON.parse(cachedUsers));
-			setCdts(JSON.parse(cachedCdts));
-			setMeetings(JSON.parse(cachedMeetings));
-			setPastMeetings(JSON.parse(cachedPastMeetings));
+			setUsers(cachedUsers);
+			setCdts(cachedCdts);
+			setMeetings(cachedMeetings);
+			setPastMeetings(cachedPastMeetings);
 			setLoading(false);
 		}
 
@@ -351,10 +351,10 @@ export function Dashboard({ session }: { session: Session }) {
 			setCdts(c);
 			setMeetings(m);
 			setPastMeetings(pm);
-			sessionStorage.setItem("users_cache", JSON.stringify(u));
-			sessionStorage.setItem("cdts_cache", JSON.stringify(c));
-			sessionStorage.setItem("meetings_cache", JSON.stringify(m));
-			sessionStorage.setItem("past_meetings_cache", JSON.stringify(pm));
+			setCached(CACHE_KEYS.users, u);
+			setCached(CACHE_KEYS.cdts, c);
+			setCached(CACHE_KEYS.meetings, m);
+			setCached(CACHE_KEYS.pastMeetings, pm);
 			setLoading(false);
 		});
 	}, []);

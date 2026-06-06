@@ -21,32 +21,22 @@ import {
 	type User,
 	type UserMeeting,
 } from "../lib/api";
+import {
+	CACHE_KEYS,
+	getCached,
+	invalidateCache,
+	setCached,
+} from "../lib/cache";
+import { roleVariant } from "../lib/constants";
+import { formatDate } from "../lib/date";
 
 const ROLES = ["student", "mentor", "parent", "alumni"] as const;
-const roleVariant: Record<string, "student" | "mentor" | "parent" | "alumni"> =
-	{
-		student: "student",
-		mentor: "mentor",
-		parent: "parent",
-		alumni: "alumni",
-	};
 
 const statusColor: Record<string, string> = {
 	yes: "bg-emerald-50 text-emerald-700 border-emerald-200",
 	maybe: "bg-amber-50 text-amber-700 border-amber-200",
 	no: "bg-red-50 text-red-700 border-red-200",
 };
-
-function formatDate(unix: number) {
-	const d = new Date(unix * 1000);
-	const isCurrentYear = d.getFullYear() === new Date().getFullYear();
-	return d.toLocaleDateString("en-US", {
-		weekday: "short",
-		month: "short",
-		day: "numeric",
-		...(isCurrentYear ? {} : { year: "numeric" }),
-	});
-}
 
 const columns: ColumnDef<User, unknown>[] = [
 	{
@@ -141,6 +131,7 @@ function TeamListView({
 		if (!setUsers) return;
 		const newRole = role || null;
 		await api.setRole(userId, newRole);
+		invalidateCache(CACHE_KEYS.users);
 		setUsers(
 			users.map((u) => (u.user_id === userId ? { ...u, role: newRole } : u)),
 		);
@@ -153,6 +144,7 @@ function TeamListView({
 		if (!setUsers) return;
 		const newCdtId = cdtId || null;
 		await api.setUserCdt(userId, newCdtId);
+		invalidateCache(CACHE_KEYS.users, CACHE_KEYS.cdts);
 		const cdt = cdts.find((c) => c.id === newCdtId);
 		setUsers(
 			users.map((u) =>
@@ -175,6 +167,7 @@ function TeamListView({
 		setSyncing(true);
 		try {
 			await api.syncUsers();
+			invalidateCache(CACHE_KEYS.users, CACHE_KEYS.cdts);
 			const fresh = await api.getUsers();
 			setUsers(fresh);
 			setSyncDone(true);
@@ -511,20 +504,20 @@ export function TeamPage({ session }: { session: Session }) {
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
-		const cachedUsers = sessionStorage.getItem("users_cache");
-		const cachedCdts = sessionStorage.getItem("cdts_cache");
+		const cachedUsers = getCached<User[]>(CACHE_KEYS.users);
+		const cachedCdts = getCached<Cdt[]>(CACHE_KEYS.cdts);
 
 		if (cachedUsers && cachedCdts) {
-			setUsers(JSON.parse(cachedUsers));
-			setCdts(JSON.parse(cachedCdts));
+			setUsers(cachedUsers);
+			setCdts(cachedCdts);
 			setLoading(false);
 		}
 
 		Promise.all([api.getUsers(), api.getCdts()]).then(([u, c]) => {
 			setUsers(u);
 			setCdts(c);
-			sessionStorage.setItem("users_cache", JSON.stringify(u));
-			sessionStorage.setItem("cdts_cache", JSON.stringify(c));
+			setCached(CACHE_KEYS.users, u);
+			setCached(CACHE_KEYS.cdts, c);
 			setLoading(false);
 		});
 	}, []);
