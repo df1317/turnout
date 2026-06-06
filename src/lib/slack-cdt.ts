@@ -6,7 +6,10 @@ import type { Env } from "../index";
 import { setProfile } from "./users";
 
 export function getCdtFieldId(bindings: Env) {
-	return bindings.SLACK_PROFILE_FIELD_CDT || "Xf040HCJKNJZ";
+	if (!bindings.SLACK_PROFILE_FIELD_CDT) {
+		throw new Error("SLACK_PROFILE_FIELD_CDT binding is required");
+	}
+	return bindings.SLACK_PROFILE_FIELD_CDT;
 }
 
 export async function syncCdtUsers(

@@ -7,7 +7,10 @@ import { isAdmin } from "../lib/admin";
 import { setProfile } from "../lib/users";
 
 function getRoleFieldId(env: Env) {
-	return env.SLACK_PROFILE_FIELD_ROLE || "Xf040NQZR2F6";
+	if (!env.SLACK_PROFILE_FIELD_ROLE) {
+		throw new Error("SLACK_PROFILE_FIELD_ROLE binding is required");
+	}
+	return env.SLACK_PROFILE_FIELD_ROLE;
 }
 
 const VALID_ROLES = ["student", "parent", "alumni", "mentor"] as const;
