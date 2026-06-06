@@ -3,6 +3,12 @@
 		"shadcn": {
 			"command": "npx",
 			"args": ["shadcn@latest", "mcp"]
+		},
+		"cloudflare": {
+			"url": "https://mcp.cloudflare.com/mcp"
+		},
+		"cloudflare-docs": {
+			"url": "https://docs.mcp.cloudflare.com/mcp"
 		}
 	}
 }

@@ -1,4 +1,5 @@
 import {
+	index,
 	integer,
 	primaryKey,
 	sqliteTable,
@@ -13,12 +14,18 @@ export const cdt = sqliteTable("cdt", {
 	channelId: text("channel_id").notNull(),
 });
 
-export const cdtMember = sqliteTable("cdt_member", {
-	userId: text("user_id").primaryKey(),
-	cdtId: text("cdt_id")
-		.notNull()
-		.references(() => cdt.id, { onDelete: "cascade" }),
-});
+export const cdtMember = sqliteTable(
+	"cdt_member",
+	{
+		userId: text("user_id").primaryKey(),
+		cdtId: text("cdt_id")
+			.notNull()
+			.references(() => cdt.id, { onDelete: "cascade" }),
+	},
+	(table) => ({
+		cdtIdIdx: index("cdt_member_cdt_id_idx").on(table.cdtId),
+	}),
+);
 
 export const meetingSeries = sqliteTable("meeting_series", {
 	id: integer("id").primaryKey({ autoIncrement: true }),
@@ -46,6 +53,10 @@ export const meeting = sqliteTable(
 	},
 	(table) => ({
 		channelScheduledUniq: unique().on(table.channelId, table.scheduledAt),
+		scheduledCancelledIdx: index("meeting_scheduled_cancelled_idx").on(
+			table.scheduledAt,
+			table.cancelled,
+		),
 	}),
 );
 
@@ -65,20 +76,35 @@ export const attendance = sqliteTable(
 		meetingId: integer("meeting_id")
 			.notNull()
 			.references(() => meeting.id, { onDelete: "cascade" }),
-		userId: text("user_id").notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => slackUser.userId, { onDelete: "cascade" }),
 		status: text("status", { enum: ["yes", "maybe", "no"] }).notNull(),
 		note: text("note").notNull().default(""),
 	},
 	(table) => ({
 		pk: primaryKey({ columns: [table.meetingId, table.userId] }),
+		userIdIdx: index("attendance_user_id_idx").on(table.userId),
+		meetingStatusIdx: index("attendance_meeting_status_idx").on(
+			table.meetingId,
+			table.status,
+		),
 	}),
 );
 
-export const webSession = sqliteTable("web_session", {
-	id: text("id").primaryKey(),
-	userId: text("user_id").notNull(),
-	expiresAt: integer("expires_at").notNull(),
-});
+export const webSession = sqliteTable(
+	"web_session",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => slackUser.userId, { onDelete: "cascade" }),
+		expiresAt: integer("expires_at").notNull(),
+	},
+	(table) => ({
+		expiresIdx: index("web_session_expires_idx").on(table.expiresAt),
+	}),
+);
 
 export const kvStore = sqliteTable("kv_store", {
 	key: text("key").primaryKey(),

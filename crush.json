@@ -1,0 +1,13 @@
+{
+	"mcp": {
+		"cloudflare": {
+			"type": "http",
+			"url": "https://mcp.cloudflare.com/mcp",
+			"oauth": true
+		},
+		"cloudflare-docs": {
+			"type": "http",
+			"url": "https://docs.mcp.cloudflare.com/mcp"
+		}
+	}
+}
