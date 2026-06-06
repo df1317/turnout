@@ -14,11 +14,7 @@ import type { Session } from "../middleware/session";
 
 type Variables = { session: Session | null };
 
-const slugify = (name: string) =>
-	`${name
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/(^-|-$)/g, "")}-cdt`;
+import { slugify } from "../../lib/slack-utils";
 
 const adminCdts = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -88,7 +84,7 @@ adminCdts.post("/", async (c) => {
 		channel_id?: string;
 	}>();
 	if (!name) return c.json({ error: "Name is required" }, 400);
-	const finalHandle = handle || slugify(name);
+	const finalHandle = handle || slugify(name, "-cdt");
 
 	const adminClient = new SlackAPIClient(c.env.SLACK_ADMIN_TOKEN);
 	let result: { usergroup?: { id: string } } | undefined;

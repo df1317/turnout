@@ -16,36 +16,7 @@ import { generateDates } from "../lib/recurrence";
 
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-async function postWithJoin(
-	// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
-	client: any,
-	channelId: string,
-	// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
-	message: any,
-	// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
-): Promise<any> {
-	// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
-	return client.chat.postMessage(message).catch(async (err: any) => {
-		if (err?.error !== "not_in_channel") throw err;
-		await client.conversations.join({ channel: channelId });
-		return client.chat.postMessage(message);
-	});
-}
-
-function flattenState(
-	// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
-	stateValues: Record<string, Record<string, any>>,
-	// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
-): Record<string, any> {
-	// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
-	const flat: Record<string, any> = {};
-	for (const blockState of Object.values(stateValues)) {
-		for (const [actionId, val] of Object.entries(blockState)) {
-			flat[actionId] = val;
-		}
-	}
-	return flat;
-}
+import { flattenState, postWithJoin } from "../lib/slack-utils";
 
 function buildListModal(
 	upcoming: { id: number; name: string; scheduled_at: number }[],
