@@ -1,0 +1,99 @@
+import { asc, sql as drizzleSql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/d1";
+import { Hono } from "hono";
+import * as schema from "../../db/schema";
+import type { Env } from "../../index";
+
+const calendar = new Hono<{ Bindings: Env }>();
+
+calendar.get("/:filename", async (c) => {
+	const filename = c.req.param("filename");
+	const token = filename?.replace(/\.ics$/, "");
+	if (!token) return c.text("Not found", 404);
+
+	const db = drizzle(c.env.DB);
+	const user = await db
+		.select({ user_id: schema.slackUser.userId, name: schema.slackUser.name })
+		.from(schema.slackUser)
+		.where(
+			drizzleSql`LOWER(${schema.slackUser.calendarToken}) = LOWER(${token})`,
+		)
+		.get();
+
+	if (!user) return c.text("Not found", 404);
+
+	const meetings = await db
+		.select({
+			id: schema.meeting.id,
+			name: schema.meeting.name,
+			description: schema.meeting.description,
+			scheduled_at: schema.meeting.scheduledAt,
+			end_time: schema.meeting.endTime,
+			cancelled: schema.meeting.cancelled,
+		})
+		.from(schema.meeting)
+		.orderBy(asc(schema.meeting.scheduledAt));
+
+	let ics = "BEGIN:VCALENDAR\r\n";
+	ics += "VERSION:2.0\r\n";
+	ics += "PRODID:-//Turnout//Calendar//EN\r\n";
+	ics += "CALSCALE:GREGORIAN\r\n";
+	ics += "METHOD:PUBLISH\r\n";
+	ics += `X-WR-CALNAME:Turnout Events (${user.name})\r\n`;
+
+	const now = `${new Date().toISOString().replace(/[-:]/g, "").split(".")[0]}Z`;
+	const baseUrl = new URL(c.req.url).origin;
+
+	for (const m of meetings) {
+		const start = `${
+			new Date(m.scheduled_at * 1000)
+				.toISOString()
+				.replace(/[-:]/g, "")
+				.split(".")[0]
+		}Z`;
+
+		// Default to 3 hours if no end time is specified
+		const endTimeSeconds = m.end_time || m.scheduled_at + 3 * 60 * 60;
+		const end = `${
+			new Date(endTimeSeconds * 1000)
+				.toISOString()
+				.replace(/[-:]/g, "")
+				.split(".")[0]
+		}Z`;
+
+		ics += "BEGIN:VEVENT\r\n";
+		ics += `DTSTAMP:${now}\r\n`;
+		ics += `UID:turnout-event-${m.scheduled_at}-${encodeURIComponent(m.name.replace(/\s+/g, "-"))}@turnout\r\n`;
+		ics += `DTSTART:${start}\r\n`;
+		ics += `DTEND:${end}\r\n`;
+		ics += `SUMMARY:${m.cancelled === 1 ? "[CANCELED] " : ""}${m.name.replace(/\r?\n/g, "\\n")}\r\n`;
+
+		let desc = m.description || "";
+		if (m.cancelled !== 1) {
+			const rsvpLinks = `\\n\\nRSVP Here: ${baseUrl}/rsvp/${m.id}/${token}`;
+			desc += rsvpLinks;
+		}
+
+		if (desc) {
+			ics += `DESCRIPTION:${desc.replace(/\r?\n/g, "\\n")}\r\n`;
+		}
+
+		if (m.cancelled === 1) {
+			ics += "STATUS:CANCELLED\r\n";
+		} else {
+			ics += "STATUS:CONFIRMED\r\n";
+		}
+
+		ics += "END:VEVENT\r\n";
+	}
+
+	ics += "END:VCALENDAR";
+
+	return c.text(ics, 200, {
+		"Content-Type": "text/calendar; charset=utf-8",
+		"Content-Disposition": 'inline; filename="calendar.ics"',
+		"Cache-Control": "no-cache",
+	});
+});
+
+export default calendar;
