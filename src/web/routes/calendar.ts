@@ -1,4 +1,4 @@
-import { asc, sql as drizzleSql } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { Hono } from "hono";
 import * as schema from "../../db/schema";
@@ -16,7 +16,7 @@ calendar.get("/:filename", async (c) => {
 		.select({ user_id: schema.slackUser.userId, name: schema.slackUser.name })
 		.from(schema.slackUser)
 		.where(
-			drizzleSql`LOWER(${schema.slackUser.calendarToken}) = LOWER(${token})`,
+			eq(schema.slackUser.calendarToken, token),
 		)
 		.get();
 
