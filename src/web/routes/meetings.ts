@@ -88,7 +88,7 @@ meetings.get("/meetings/:id/:token", async (c) => {
 		.select({ user_id: schema.slackUser.userId })
 		.from(schema.slackUser)
 		.where(
-			drizzleSql`LOWER(${schema.slackUser.calendarToken}) = LOWER(${token})`,
+			eq(schema.slackUser.calendarToken, token),
 		)
 		.get();
 
@@ -241,7 +241,7 @@ meetings.post("/rsvp/:meetingId/:token", async (c) => {
 		.select({ user_id: schema.slackUser.userId })
 		.from(schema.slackUser)
 		.where(
-			drizzleSql`LOWER(${schema.slackUser.calendarToken}) = LOWER(${token})`,
+			eq(schema.slackUser.calendarToken, token),
 		)
 		.get();
 
