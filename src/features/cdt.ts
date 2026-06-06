@@ -5,26 +5,8 @@ import { SlackAPIClient } from "slack-web-api-client";
 import { cdtMember, cdt as cdtTable, slackUser } from "../db/schema";
 import type { Env } from "../index";
 import { deleteSlackUsergroup, getCdtFieldId } from "../lib/slack-cdt";
+import { flattenState, slugify } from "../lib/slack-utils";
 import { isAdmin, setProfile } from "../lib/users";
-
-function slugify(name: string): string {
-	return name
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-|-$/g, "");
-}
-
-function flattenState(
-	stateValues: Record<string, Record<string, unknown>>,
-): Record<string, unknown> {
-	const flat: Record<string, unknown> = {};
-	for (const blockState of Object.values(stateValues)) {
-		for (const [actionId, val] of Object.entries(blockState)) {
-			flat[actionId] = val;
-		}
-	}
-	return flat;
-}
 
 function buildListModal(
 	cdts: { id: string; name: string; handle: string; member_count: number }[],
@@ -335,7 +317,7 @@ const cdt = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 			const flat = flattenState(req.payload.view.state.values);
 			// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
 			const name: string = (flat.cdt_name as any)?.value ?? "";
-			const handle = `${slugify(name)}-cdt`;
+			const handle = slugify(name, "-cdt");
 
 			const db = drizzle(env.DB);
 			const [existingName, ugList] = await Promise.all([
@@ -387,7 +369,7 @@ const cdt = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 				const members: string[] =
 					// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
 					(flat.cdt_members as any)?.selected_users ?? [];
-				const handle = `${slugify(name)}-cdt`;
+				const handle = slugify(name, "-cdt");
 
 				const db = drizzle(env.DB);
 				const adminClient = new SlackAPIClient(env.SLACK_ADMIN_TOKEN);

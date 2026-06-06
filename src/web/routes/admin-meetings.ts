@@ -17,6 +17,7 @@ import {
 	buildAnnouncementBlocks,
 	updateAnnouncement,
 } from "../../lib/announcements";
+import { postWithJoin } from "../../lib/slack-utils";
 import type { Session } from "../middleware/session";
 
 type Variables = { session: Session | null };
@@ -122,12 +123,11 @@ adminMeetings.post("/", async (c) => {
 
 	if (channel_id && shouldAnnounceNow) {
 		const botClient = new SlackAPIClient(c.env.SLACK_BOT_TOKEN);
-		await botClient.conversations.join({ channel: channel_id }).catch(() => {});
 		const blocks = buildAnnouncementBlocks(
 			{ id, name, description, scheduled_at, end_time: end_time ?? null },
 			{ yes: [], maybe: [], no: [] },
 		);
-		const posted = (await botClient.chat.postMessage({
+		const posted = (await postWithJoin(botClient, channel_id, {
 			channel: channel_id,
 			text: `Meeting: ${name}`,
 			blocks,
@@ -333,19 +333,16 @@ adminMeetings.post("/series", async (c) => {
 		if (!id) continue;
 
 		if (channel_id && shouldAnnounceNow) {
-			try {
-				await botClient.conversations.join({ channel: channel_id });
-			} catch {}
 			const blocks = buildAnnouncementBlocks(
 				{ id, name, description, scheduled_at: ts, end_time },
 				{ yes: [], maybe: [], no: [] },
 			);
-			const posted = (await botClient.chat.postMessage({
+			const posted = (await postWithJoin(botClient, channel_id, {
 				channel: channel_id,
 				text: `Meeting: ${name}`,
 				blocks,
-			})) as { ts?: string };
-			message_ts = posted.ts ?? null;
+			}).catch(() => null)) as { ts?: string } | null;
+			message_ts = posted?.ts ?? null;
 
 			if (message_ts) {
 				await db
@@ -421,9 +418,9 @@ adminMeetings.post("/import-ics", async (c) => {
 		const twoWeeksInSeconds = 14 * 24 * 60 * 60;
 
 		if (body.channel_id) {
-			try {
-				await botClient.conversations.join({ channel: body.channel_id });
-			} catch {}
+			await botClient.conversations
+				.join({ channel: body.channel_id })
+				.catch(() => {});
 		}
 
 		// Create a series for the imported calendar
@@ -538,7 +535,7 @@ adminMeetings.post("/import-ics", async (c) => {
 						{ id, name: cleanName, description, scheduled_at, end_time },
 						{ yes: [], maybe: [], no: [] },
 					);
-					const posted = (await botClient.chat.postMessage({
+					const posted = (await postWithJoin(botClient, body.channel_id, {
 						channel: body.channel_id,
 						text: `Meeting: ${cleanName}`,
 						blocks,
