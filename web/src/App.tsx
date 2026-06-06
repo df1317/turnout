@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Toaster } from "./components/ui/sonner";
 import { api, type Session } from "./lib/api";
 import { AdminPage } from "./pages/Admin";
@@ -180,27 +181,29 @@ export default function App() {
 
 	return (
 		<BrowserRouter>
-			<Routes>
-				<Route path="/team/*" element={<TeamPage session={session} />} />
-				<Route path="/cdts/*" element={<CdtsPage session={session} />} />
-				<Route
-					path="/meetings/:id"
-					element={<MeetingPage session={session} />}
-				/>
-				<Route
-					path="/meetings/*"
-					element={<MeetingsPage session={session} />}
-				/>
-				<Route
-					path="/rsvp/:id/:token"
-					element={<RsvpPage session={session} />}
-				/>
-				<Route path="/admin/*" element={<AdminPage session={session} />} />
-				<Route path="/teamsnap" element={<TeamSnapPage session={session} />} />
+			<ErrorBoundary>
+				<Routes>
+					<Route path="/team/*" element={<TeamPage session={session} />} />
+					<Route path="/cdts/*" element={<CdtsPage session={session} />} />
+					<Route
+						path="/meetings/:id"
+						element={<MeetingPage session={session} />}
+					/>
+					<Route
+						path="/meetings/*"
+						element={<MeetingsPage session={session} />}
+					/>
+					<Route
+						path="/rsvp/:id/:token"
+						element={<RsvpPage session={session} />}
+					/>
+					<Route path="/admin/*" element={<AdminPage session={session} />} />
+					<Route path="/teamsnap" element={<TeamSnapPage session={session} />} />
 
-				<Route path="/" element={<Dashboard session={session} />} />
-				<Route path="*" element={<Navigate to="/" replace />} />
-			</Routes>
+					<Route path="/" element={<Dashboard session={session} />} />
+					<Route path="*" element={<Navigate to="/" replace />} />
+				</Routes>
+			</ErrorBoundary>
 			<Toaster position="top-right" richColors />
 		</BrowserRouter>
 	);

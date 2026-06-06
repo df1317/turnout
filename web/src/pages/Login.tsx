@@ -33,13 +33,13 @@ export function LoginPage() {
 	};
 
 	return (
-		<div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-zinc-50 p-4">
+		<div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background p-4">
 			{/* Decorative Background */}
-			<div className="absolute inset-0 z-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]"></div>
+			<div className="absolute inset-0 z-0 bg-[radial-gradient(var(--border)_1px,transparent_1px)] [background-size:16px_16px]"></div>
 			<div className="pointer-events-none absolute top-1/2 left-1/2 z-0 h-[500px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[100px]"></div>
 
-			<div className="relative z-10 w-full max-w-sm space-y-8 rounded-2xl border border-zinc-200/50 bg-white/80 p-8 text-center shadow-xl backdrop-blur-xl">
-				<div className="mx-auto h-24 w-24 overflow-hidden rounded-2xl border border-zinc-200/50 shadow-primary/10 shadow-xl">
+			<div className="relative z-10 w-full max-w-sm space-y-8 rounded-2xl border border-border/50 bg-card/80 p-8 text-center shadow-xl backdrop-blur-xl">
+				<div className="mx-auto h-24 w-24 overflow-hidden rounded-2xl border border-border/50 shadow-primary/10 shadow-xl">
 					<img
 						src="/sir.jpeg"
 						alt="Turnout Logo"
