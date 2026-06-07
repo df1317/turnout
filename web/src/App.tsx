@@ -198,7 +198,10 @@ export default function App() {
 						element={<RsvpPage session={session} />}
 					/>
 					<Route path="/admin/*" element={<AdminPage session={session} />} />
-					<Route path="/teamsnap" element={<TeamSnapPage session={session} />} />
+					<Route
+						path="/teamsnap"
+						element={<TeamSnapPage session={session} />}
+					/>
 
 					<Route path="/" element={<Dashboard session={session} />} />
 					<Route path="*" element={<Navigate to="/" replace />} />

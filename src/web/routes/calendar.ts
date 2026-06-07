@@ -24,9 +24,7 @@ calendar.get("/:filename", async (c) => {
 	const user = await db
 		.select({ user_id: schema.slackUser.userId, name: schema.slackUser.name })
 		.from(schema.slackUser)
-		.where(
-			eq(schema.slackUser.calendarToken, token),
-		)
+		.where(eq(schema.slackUser.calendarToken, token))
 		.get();
 
 	if (!user) return c.text("Not found", 404);
