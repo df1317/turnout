@@ -28,15 +28,13 @@ export function buildListModal(
 				type: "mrkdwn",
 				text: `${isCancelled ? "~" : ""}*${m.name}*${isCancelled ? "~" : ""}\n<!date^${m.scheduled_at}^{date_long_pretty} at {time}|${new Date(m.scheduled_at * 1000).toISOString()}>`,
 			},
-		};
-		if (adminUser) {
-			block.accessory = {
+			accessory: {
 				type: "button",
-				text: { type: "plain_text", text: "Edit" },
+				text: { type: "plain_text", text: adminUser ? "Edit" : "RSVP" },
 				action_id: "meeting_open_edit",
 				value: String(m.id),
-			};
-		}
+			},
+		};
 		blocks.push(block);
 	};
 
@@ -191,15 +189,19 @@ export function buildCreateModal(isRecurring: boolean): Modal {
 	};
 }
 
-export function buildEditModal(meeting: {
-	id: number;
-	name: string;
-	description: string;
-	scheduled_at: number;
-	end_time: number | null;
-	channel_id: string;
-	cancelled: number;
-}): Modal {
+export function buildEditModal(
+	meeting: {
+		id: number;
+		name: string;
+		description: string;
+		scheduled_at: number;
+		end_time: number | null;
+		channel_id: string;
+		cancelled: number;
+	},
+	isAdmin: boolean,
+	currentRsvp?: { status: string; note: string },
+): Modal {
 	const actionButtons: Block[] = meeting.cancelled
 		? [
 				{
@@ -248,14 +250,50 @@ export function buildEditModal(meeting: {
 		},
 	});
 
-	return {
-		type: "modal",
-		callback_id: "meetings_edit",
-		private_metadata: JSON.stringify({ meetingId: meeting.id }),
-		title: { type: "plain_text", text: "Edit Meeting" },
-		submit: { type: "plain_text", text: "Save" },
-		close: { type: "plain_text", text: "Back" },
-		blocks: [
+	const rsvpButtons: Block[] = (["yes", "maybe", "no"] as const).map(
+		(status) => ({
+			type: "button",
+			text: {
+				type: "plain_text",
+				text:
+					status === "yes"
+						? "✅ Yes"
+						: status === "maybe"
+							? "🤔 Maybe"
+							: "❌ No",
+			},
+			action_id: `edit_rsvp_${status}`,
+			value: String(meeting.id),
+			...(currentRsvp?.status === status ? { style: "primary" } : {}),
+		}),
+	);
+
+	const blocks: Block[] = [
+		{
+			type: "section",
+			text: {
+				type: "mrkdwn",
+				text: `*${meeting.name}*\n<!date^${meeting.scheduled_at}^{date_long_pretty} at {time}|${new Date(meeting.scheduled_at * 1000).toISOString()}>`,
+			},
+		},
+		{ type: "actions", elements: rsvpButtons },
+		{
+			type: "input",
+			block_id: "rsvp_note_block",
+			element: {
+				type: "plain_text_input",
+				action_id: "rsvp_note",
+				multiline: true,
+				initial_value: currentRsvp?.note ?? "",
+			},
+			label: { type: "plain_text", text: "Note" },
+			optional: true,
+		},
+	];
+
+	if (isAdmin) {
+		blocks.push(
+			{ type: "divider" },
 			{
 				type: "input",
 				block_id: "name_block",
@@ -313,7 +351,20 @@ export function buildEditModal(meeting: {
 			},
 			{ type: "divider" },
 			{ type: "actions", elements: actionButtons },
-		],
+		);
+	}
+
+	return {
+		type: "modal",
+		callback_id: "meetings_edit",
+		private_metadata: JSON.stringify({ meetingId: meeting.id }),
+		title: {
+			type: "plain_text",
+			text: isAdmin ? "Edit Meeting" : "RSVP",
+		},
+		...(isAdmin ? { submit: { type: "plain_text", text: "Save" } } : {}),
+		close: { type: "plain_text", text: "Back" },
+		blocks,
 	};
 }
 

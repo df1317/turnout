@@ -16,6 +16,14 @@ features:
       description: Set a user's role (admin only)
       usage_hint: "[@user] [student|parent|alumni|mentor]"
       should_escape: false
+    - command: /web
+      url: https://sirsnap.programming-aaaaaeyr6ul5biewy5byj6ykgq.workers.dev/api/slack
+      description: Get the link to the web app
+      should_escape: false
+    - command: /rsvp
+      url: https://sirsnap.programming-aaaaaeyr6ul5biewy5byj6ykgq.workers.dev/api/slack
+      description: View upcoming meetings and RSVP
+      should_escape: false
     - command: /cdt
       url: https://sirsnap.programming-aaaaaeyr6ul5biewy5byj6ykgq.workers.dev/api/slack
       description: Manage Component Design Teams (admin only)

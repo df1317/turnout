@@ -93,13 +93,16 @@ const updateAnnouncement = (
 ) => _updateAnnouncement(client, env.DB, meeting);
 
 const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
-	slackApp.command("/meetings", async ({ context, payload }) => {
+	const openMeetingList = async (
+		context: { userId?: string; client: any },
+		triggerId: string,
+		adminUser: boolean,
+	) => {
 		const now = Math.floor(Date.now() / 1000);
 		const userId = context.userId;
 		if (!userId) return;
 		const db = drizzle(env.DB);
-		const [adminUser, upcomingMeetings, cancelledMeetings] = await Promise.all([
-			isAdmin(env.DB, context.client, userId),
+		const [upcomingMeetings, cancelledMeetings] = await Promise.all([
 			db
 				.select({
 					id: meetingTable.id,
@@ -127,9 +130,20 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 		]);
 
 		await context.client.views.open({
-			trigger_id: payload.trigger_id,
+			trigger_id: triggerId,
 			view: buildListModal(upcomingMeetings, cancelledMeetings, adminUser),
 		});
+	};
+
+	slackApp.command("/meetings", async ({ context, payload }) => {
+		const userId = context.userId;
+		if (!userId) return;
+		const adminUser = await isAdmin(env.DB, context.client, userId);
+		await openMeetingList(context, payload.trigger_id, adminUser);
+	});
+
+	slackApp.command("/rsvp", async ({ context, payload }) => {
+		await openMeetingList(context, payload.trigger_id, false);
 	});
 
 	slackApp.viewSubmission("meetings_list", async () => ({
@@ -140,33 +154,100 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 	slackApp.action("meeting_open_edit", async ({ context, payload }) => {
 		const userId = context.userId;
 		if (!userId) return;
-		if (!(await isAdmin(env.DB, context.client, userId))) return;
 		const p = payload as BlockActionPayload;
 		const value = p.actions?.[0]?.value;
 		if (!value) return;
 		const meetingId = Number(value);
 		const db = drizzle(env.DB);
-		const meetingRow = await db
-			.select({
-				id: meetingTable.id,
-				name: meetingTable.name,
-				description: meetingTable.description,
-				scheduled_at: meetingTable.scheduledAt,
-				end_time: meetingTable.endTime,
-				channel_id: meetingTable.channelId,
-				cancelled: meetingTable.cancelled,
-			})
-			.from(meetingTable)
-			.where(eq(meetingTable.id, meetingId))
-			.get();
+		const [adminUser, meetingRow, rsvpRow] = await Promise.all([
+			isAdmin(env.DB, context.client, userId),
+			db
+				.select({
+					id: meetingTable.id,
+					name: meetingTable.name,
+					description: meetingTable.description,
+					scheduled_at: meetingTable.scheduledAt,
+					end_time: meetingTable.endTime,
+					channel_id: meetingTable.channelId,
+					cancelled: meetingTable.cancelled,
+				})
+				.from(meetingTable)
+				.where(eq(meetingTable.id, meetingId))
+				.get(),
+			db
+				.select({
+					status: attendance.status,
+					note: attendance.note,
+				})
+				.from(attendance)
+				.where(
+					and(
+						eq(attendance.meetingId, meetingId),
+						eq(attendance.userId, userId),
+					),
+				)
+				.get(),
+		]);
 
 		if (!meetingRow) return;
 
 		await context.client.views.push({
 			trigger_id: p.trigger_id,
-			view: buildEditModal(meetingRow),
+			view: buildEditModal(meetingRow, adminUser, rsvpRow ?? undefined),
 		});
 	});
+
+	for (const status of ["yes", "maybe", "no"] as const) {
+		slackApp.action(`edit_rsvp_${status}`, async ({ context, payload }) => {
+			const userId = context.userId;
+			if (!userId) return;
+			const p = payload as BlockActionPayload;
+			const value = p.actions?.[0]?.value;
+			if (!value) return;
+			const meetingId = Number(value);
+			const db = drizzle(env.DB);
+
+			// Get the note from the modal's current state
+			// biome-ignore lint/suspicious/noExplicitAny: view state shape is untyped
+			const note: string =
+				(p.view as any)?.state?.values?.rsvp_note_block?.rsvp_note?.value ?? "";
+
+			await db
+				.insert(attendance)
+				.values({ meetingId, userId, status, note })
+				.onConflictDoUpdate({
+					target: [attendance.meetingId, attendance.userId],
+					set: { status, note },
+				})
+				.run();
+
+			// Refresh the modal to show updated RSVP state
+			const [adminUser, meetingRow] = await Promise.all([
+				isAdmin(env.DB, context.client, userId),
+				db
+					.select({
+						id: meetingTable.id,
+						name: meetingTable.name,
+						description: meetingTable.description,
+						scheduled_at: meetingTable.scheduledAt,
+						end_time: meetingTable.endTime,
+						channel_id: meetingTable.channelId,
+						cancelled: meetingTable.cancelled,
+					})
+					.from(meetingTable)
+					.where(eq(meetingTable.id, meetingId))
+					.get(),
+			]);
+
+			if (!meetingRow || !p.view) return;
+
+			await context.client.views.update({
+				view_id: p.view.id,
+				hash: p.view.hash,
+				view: buildEditModal(meetingRow, adminUser, { status, note }),
+			});
+		});
+	}
 
 	slackApp.action("repeat_toggle", async ({ context, payload }) => {
 		const p = payload as BlockActionPayload;
@@ -211,7 +292,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 			await Promise.all([
 				context.client.views.update({
 					view_id: p.view!.id,
-					view: buildEditModal(meeting),
+					view: buildEditModal(meeting, true),
 				}),
 				updateAnnouncement(context.client, env, meeting),
 				rootViewId
@@ -254,7 +335,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 			await Promise.all([
 				context.client.views.update({
 					view_id: p.view!.id,
-					view: buildEditModal(meeting),
+					view: buildEditModal(meeting, true),
 				}),
 				updateAnnouncement(context.client, env, meeting),
 				rootViewId
