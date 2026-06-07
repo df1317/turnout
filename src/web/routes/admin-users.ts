@@ -17,7 +17,13 @@ adminUsers.post("/bulk/role", async (c) => {
 		role: string | null;
 	}>();
 	if (!user_ids?.length) return c.json({ error: "No user IDs provided" }, 400);
-	const validRoles = ["student", "mentor", "parent", "alumni"];
+	type Role = (typeof schema.slackUser.role.enumValues)[number];
+	const validRoles: readonly string[] = [
+		"student",
+		"mentor",
+		"parent",
+		"alumni",
+	];
 	if (role && !validRoles.includes(role))
 		return c.json({ error: "Invalid role" }, 400);
 
@@ -25,8 +31,7 @@ adminUsers.post("/bulk/role", async (c) => {
 	for (const id of user_ids) {
 		await db
 			.update(schema.slackUser)
-			// biome-ignore lint/suspicious/noExplicitAny: role is validated above
-			.set({ role: role as any })
+			.set({ role: role as Role })
 			.where(eq(schema.slackUser.userId, id));
 	}
 
@@ -86,14 +91,19 @@ adminUsers.post("/bulk/cdt", async (c) => {
 adminUsers.post("/:userId/role", async (c) => {
 	const userId = c.req.param("userId");
 	const { role } = await c.req.json<{ role: string | null }>();
-	const validRoles = ["student", "mentor", "parent", "alumni"];
+	type Role = (typeof schema.slackUser.role.enumValues)[number];
+	const validRoles: readonly string[] = [
+		"student",
+		"mentor",
+		"parent",
+		"alumni",
+	];
 	if (role && !validRoles.includes(role))
 		return c.json({ error: "Invalid role" }, 400);
 	const db = drizzle(c.env.DB);
 	await db
 		.update(schema.slackUser)
-		// biome-ignore lint/suspicious/noExplicitAny: role is validated above
-		.set({ role: role as any })
+		.set({ role: role as Role })
 		.where(eq(schema.slackUser.userId, userId));
 	return c.json({ ok: true });
 });

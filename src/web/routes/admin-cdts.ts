@@ -150,8 +150,8 @@ adminCdts.put("/:id", async (c) => {
 	}>();
 	const db = drizzle(c.env.DB);
 
-	// biome-ignore lint/suspicious/noExplicitAny: dynamic update set
-	const updateSet: Record<string, any> = {};
+	type CdtUpdate = Partial<typeof schema.cdt.$inferInsert>;
+	const updateSet: CdtUpdate = {};
 	if (body.name !== undefined) updateSet.name = body.name;
 	if (body.channel_id !== undefined) updateSet.channelId = body.channel_id;
 
