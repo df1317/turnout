@@ -172,8 +172,8 @@ adminMeetings.put("/:id", async (c) => {
 		end_time?: number | null;
 	}>();
 
-	// biome-ignore lint/suspicious/noExplicitAny: dynamic update set
-	const updateSet: Record<string, any> = {};
+	type MeetingUpdate = Partial<typeof schema.meeting.$inferInsert>;
+	const updateSet: MeetingUpdate = {};
 	if (body.name !== undefined) updateSet.name = body.name;
 	if (body.description !== undefined) updateSet.description = body.description;
 	if (body.scheduled_at !== undefined)
@@ -417,6 +417,29 @@ adminMeetings.post("/import-ics", async (c) => {
 		const now = Math.floor(Date.now() / 1000);
 		const twoWeeksInSeconds = 14 * 24 * 60 * 60;
 
+		// Hoist settings reads outside the loop — they don't change per event
+		let defaultMeetingLength = 3;
+		const lengthSetting = await db
+			.select({ value: schema.kvStore.value })
+			.from(schema.kvStore)
+			.where(eq(schema.kvStore.key, "default_meeting_length"))
+			.get();
+		if (lengthSetting?.value) {
+			defaultMeetingLength = parseInt(lengthSetting.value, 10);
+		}
+
+		// Batch-load existing meetings for deduplication instead of querying per event
+		const existingMeetings = await db
+			.select({
+				name: schema.meeting.name,
+				scheduled_at: schema.meeting.scheduledAt,
+			})
+			.from(schema.meeting)
+			.all();
+		const existingSet = new Set(
+			existingMeetings.map((m) => `${m.name}|${m.scheduled_at}`),
+		);
+
 		if (body.channel_id) {
 			await botClient.conversations
 				.join({ channel: body.channel_id })
@@ -453,16 +476,6 @@ adminMeetings.post("/import-ics", async (c) => {
 				end_time = Math.floor(new Date(vEvent.end).getTime() / 1000);
 			}
 
-			let defaultMeetingLength = 3;
-			const setting = await db
-				.select({ value: schema.kvStore.value })
-				.from(schema.kvStore)
-				.where(eq(schema.kvStore.key, "default_meeting_length"))
-				.get();
-			if (setting?.value) {
-				defaultMeetingLength = parseInt(setting.value, 10);
-			}
-
 			const isPast = end_time
 				? end_time <= now
 				: scheduled_at + defaultMeetingLength * 60 * 60 <= now;
@@ -493,20 +506,9 @@ adminMeetings.post("/import-ics", async (c) => {
 				.replace(/\[CANCELED\]\s*/i, "")
 				.replace(/\[CANCELLED\]\s*/i, "");
 
-			// Deduplication check
-			const existing = await db
-				.select({ id: schema.meeting.id })
-				.from(schema.meeting)
-				.where(
-					and(
-						eq(schema.meeting.name, cleanName),
-						eq(schema.meeting.scheduledAt, scheduled_at),
-					),
-				)
-				.get();
-
-			if (existing) {
-				continue; // Skip if a meeting with the same name and start time already exists
+			// Deduplication check against pre-loaded set
+			if (existingSet.has(`${cleanName}|${scheduled_at}`)) {
+				continue;
 			}
 
 			let message_ts: string | null = null;
