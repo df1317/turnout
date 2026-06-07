@@ -906,7 +906,7 @@ function NoteEditor({
 	onUpdate,
 }: {
 	meeting: Meeting;
-	onUpdate: (id: number, status: string, note: string) => void;
+	onUpdate: (id: number, status: Meeting["my_status"], note: string) => void;
 }) {
 	const [note, setNote] = useState(meeting.my_note ?? "");
 	return (

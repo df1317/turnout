@@ -148,17 +148,17 @@ export function TeamSnapPage({ session }: { session: Session }) {
 							</Alert>
 						)}
 
-						{result?.success && (
+						{!result?.error && result?.eventsFound != null && (
 							<Alert className="border-green-500 bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300">
 								<AlertTitle>Import Successful</AlertTitle>
 								<AlertDescription>
 									<ul className="mt-2 list-disc space-y-1 pl-5">
-										<li>Events Found: {result.stats.eventsFound}</li>
-										<li>Members Found: {result.stats.membersFound}</li>
-										<li>Users Matched: {result.stats.matchedUsers}</li>
+										<li>Events Found: {result.eventsFound}</li>
+										<li>Members Found: {result.membersFound}</li>
+										<li>Users Matched: {result.matchedUsers}</li>
 										<li>
 											Attendance Records Inserted:{" "}
-											{result.stats.attendanceRecordsInserted}
+											{result.attendanceRecordsInserted}
 										</li>
 									</ul>
 								</AlertDescription>

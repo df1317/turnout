@@ -9,8 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import {
-	type AdminMeeting,
 	api,
+	type Meeting,
 	type MeetingAttendance,
 	type Session,
 } from "../lib/api";
@@ -18,7 +18,7 @@ import {
 export function MeetingPage({ session }: { session: Session }) {
 	const { id } = useParams();
 	const navigate = useNavigate();
-	const [meeting, setMeeting] = useState<AdminMeeting | null>(null);
+	const [meeting, setMeeting] = useState<Meeting | null>(null);
 	const [attendance, setAttendance] = useState<MeetingAttendance[] | null>(
 		null,
 	);
