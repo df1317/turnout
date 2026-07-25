@@ -406,9 +406,13 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 				const flat = flattenState(p.view.state.values);
 				const name: string = flat.name?.value ?? "";
 				const description: string = flat.description?.value ?? "";
-				const channelId: string = flat.channel?.selected_channel ?? "";
+				const channelId: string = flat.channel?.selected_conversation ?? "";
 				const isRecurring = flat.days !== undefined;
 				const client = req.context.client;
+
+				if (!channelId) {
+					throw new Error("No channel selected");
+				}
 
 				if (isRecurring) {
 					const [hours, mins] = (flat.time?.selected_time ?? "00:00")
@@ -473,6 +477,10 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 								{ id: row.id, name, description, scheduled_at, end_time },
 								{ yes: [], maybe: [], no: [] },
 							),
+						}).catch((err: unknown) => {
+							throw new Error(
+								`Failed to post meeting announcement to <#${channelId}>: ${(err as Error).message}`,
+							);
 						});
 						await db
 							.update(meetingTable)
@@ -513,6 +521,10 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 							{ id: row.id, name, description, scheduled_at, end_time },
 							{ yes: [], maybe: [], no: [] },
 						),
+					}).catch((err: unknown) => {
+						throw new Error(
+							`Failed to post meeting announcement to <#${channelId}>: ${(err as Error).message}`,
+						);
 					});
 					await db
 						.update(meetingTable)
@@ -546,7 +558,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 				const end_time = duration_minutes
 					? scheduled_at + duration_minutes * 60
 					: null;
-				const channelId: string = flat.channel?.selected_channel ?? "";
+				const channelId: string = flat.channel?.selected_conversation ?? "";
 
 				const db = drizzle(env.DB);
 				await db

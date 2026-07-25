@@ -128,19 +128,30 @@ adminMeetings.post("/", async (c) => {
 			{ id, name, description, scheduled_at, end_time: end_time ?? null },
 			{ yes: [], maybe: [], no: [] },
 		);
-		const posted = (await postWithJoin(botClient, channel_id, {
-			channel: channel_id,
-			text: `Meeting: ${name}`,
-			blocks,
-		})) as { ts?: string };
+		try {
+			const posted = (await postWithJoin(botClient, channel_id, {
+				channel: channel_id,
+				text: `Meeting: ${name}`,
+				blocks,
+			})) as { ts?: string };
 
-		message_ts = posted.ts ?? null;
+			message_ts = posted.ts ?? null;
 
-		if (message_ts) {
-			await db
-				.update(schema.meeting)
-				.set({ messageTs: message_ts })
-				.where(eq(schema.meeting.id, id));
+			if (message_ts) {
+				await db
+					.update(schema.meeting)
+					.set({ messageTs: message_ts })
+					.where(eq(schema.meeting.id, id));
+			}
+		} catch (err) {
+			console.error("Failed to announce meeting:", err);
+			return c.json(
+				{
+					error: `Meeting created but announcement failed: ${(err as Error).message}`,
+					id,
+				},
+				500,
+			);
 		}
 	}
 
@@ -337,18 +348,32 @@ adminMeetings.post("/series", async (c) => {
 				{ id, name, description, scheduled_at: ts, end_time },
 				{ yes: [], maybe: [], no: [] },
 			);
-			const posted = (await postWithJoin(botClient, channel_id, {
-				channel: channel_id,
-				text: `Meeting: ${name}`,
-				blocks,
-			}).catch(() => null)) as { ts?: string } | null;
-			message_ts = posted?.ts ?? null;
+			try {
+				const posted = (await postWithJoin(botClient, channel_id, {
+					channel: channel_id,
+					text: `Meeting: ${name}`,
+					blocks,
+				})) as { ts?: string };
+				message_ts = posted.ts ?? null;
 
-			if (message_ts) {
-				await db
-					.update(schema.meeting)
-					.set({ messageTs: message_ts })
-					.where(eq(schema.meeting.id, id));
+				if (message_ts) {
+					await db
+						.update(schema.meeting)
+						.set({ messageTs: message_ts })
+						.where(eq(schema.meeting.id, id));
+				}
+			} catch (err) {
+				console.error(
+					`Failed to announce meeting ${id} in series ${seriesId}:`,
+					err,
+				);
+				return c.json(
+					{
+						error: `Series created but announcement failed for ${name}: ${(err as Error).message}`,
+						series_id: seriesId,
+					},
+					500,
+				);
 			}
 		}
 
@@ -551,7 +576,16 @@ adminMeetings.post("/import-ics", async (c) => {
 							.where(eq(schema.meeting.id, id));
 					}
 				} catch (err) {
-					console.error("Failed to announce imported meeting", err);
+					console.error(
+						`Failed to announce imported meeting ${cleanName}:`,
+						err,
+					);
+					return c.json(
+						{
+							error: `ICS import created meetings but announcement failed: ${(err as Error).message}`,
+						},
+						500,
+					);
 				}
 			}
 

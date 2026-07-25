@@ -54,7 +54,7 @@ adminSettings.get("/slack/channels", async (c) => {
 
 	do {
 		const result = (await botClient.conversations.list({
-			types: ["public_channel"],
+			types: ["public_channel", "private_channel"],
 			limit: 1000,
 			...(cursor ? { cursor } : {}),
 		})) as {

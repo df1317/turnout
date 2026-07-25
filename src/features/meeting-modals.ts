@@ -94,7 +94,11 @@ export function buildCreateModal(isRecurring: boolean): Modal {
 		{
 			type: "input",
 			block_id: "channel_block",
-			element: { type: "channels_select", action_id: "channel" },
+			element: {
+				type: "conversations_select",
+				action_id: "channel",
+				filter: { include: ["public", "private"] },
+			},
 			label: { type: "plain_text", text: "Post to channel" },
 		},
 	];
@@ -343,9 +347,10 @@ export function buildEditModal(
 				type: "input",
 				block_id: "channel_block",
 				element: {
-					type: "channels_select",
+					type: "conversations_select",
 					action_id: "channel",
-					initial_channel: meeting.channel_id,
+					initial_conversation: meeting.channel_id,
+					filter: { include: ["public", "private"] },
 				},
 				label: { type: "plain_text", text: "Channel" },
 			},

@@ -71,7 +71,11 @@ function buildCreateModal(): any {
 			{
 				type: "input",
 				block_id: "channel_block",
-				element: { type: "channels_select", action_id: "cdt_channel" },
+				element: {
+					type: "conversations_select",
+					action_id: "cdt_channel",
+					filter: { include: ["public", "private"] },
+				},
 				label: { type: "plain_text", text: "Channel" },
 			},
 			{
@@ -116,9 +120,10 @@ function buildEditModal(
 				type: "input",
 				block_id: "channel_block",
 				element: {
-					type: "channels_select",
+					type: "conversations_select",
 					action_id: "cdt_channel",
-					initial_channel: cdtRow.channel_id,
+					initial_conversation: cdtRow.channel_id,
+					filter: { include: ["public", "private"] },
 				},
 				label: { type: "plain_text", text: "Channel" },
 			},
@@ -365,7 +370,7 @@ const cdt = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 				const name: string = (flat.cdt_name as any)?.value ?? "";
 				const channelId: string =
 					// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
-					(flat.cdt_channel as any)?.selected_channel ?? "";
+					(flat.cdt_channel as any)?.selected_conversation ?? "";
 				const members: string[] =
 					// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
 					(flat.cdt_members as any)?.selected_users ?? [];
@@ -442,7 +447,7 @@ const cdt = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 				const newName: string = (flat.cdt_name as any)?.value ?? "";
 				const newChannelId: string =
 					// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
-					(flat.cdt_channel as any)?.selected_channel ?? "";
+					(flat.cdt_channel as any)?.selected_conversation ?? "";
 				const newMembers: string[] =
 					// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
 					(flat.cdt_members as any)?.selected_users ?? [];
