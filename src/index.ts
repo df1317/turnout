@@ -13,6 +13,7 @@ export type Env = SlackEdgeAppEnv & {
 	SLACK_CLIENT_ID: string;
 	SLACK_CLIENT_SECRET: string;
 	HOST: string;
+	SLACK_TEAM_ID?: string;
 	SLACK_PROFILE_FIELD_CDT?: string;
 	SLACK_PROFILE_FIELD_ROLE?: string;
 };

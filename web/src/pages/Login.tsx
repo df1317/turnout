@@ -14,6 +14,8 @@ export function LoginPage() {
 				setErrorMsg("Session expired. Please try again.");
 			else if (err === "server_error")
 				setErrorMsg("An error occurred. Please try again.");
+			else if (err === "wrong_workspace")
+				setErrorMsg("This app is restricted to a specific Slack workspace.");
 			else setErrorMsg(err);
 		}
 	}, []);

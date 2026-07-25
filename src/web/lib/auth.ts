@@ -9,6 +9,9 @@ export function buildOAuthUrl(env: Env, state: string): string {
 		redirect_uri: getRedirectUri(env),
 		state,
 	});
+	if (env.SLACK_TEAM_ID) {
+		params.set("team", env.SLACK_TEAM_ID);
+	}
 	return `https://slack.com/oauth/v2/authorize?${params}`;
 }
 
@@ -24,6 +27,7 @@ export async function exchangeCode(
 	name: string;
 	avatarUrl: string;
 	accessToken: string;
+	teamId: string;
 }> {
 	const res = await fetch("https://slack.com/api/oauth.v2.access", {
 		method: "POST",
@@ -41,6 +45,7 @@ export async function exchangeCode(
 
 	const authedUser = data.authed_user;
 	const userToken: string = authedUser.access_token;
+	const teamId: string = data.team?.id;
 
 	const identity = (await fetch("https://slack.com/api/users.identity", {
 		headers: { Authorization: `Bearer ${userToken}` },
@@ -53,5 +58,6 @@ export async function exchangeCode(
 		name: identity.user.name,
 		avatarUrl: identity.user.image_72 ?? "",
 		accessToken: userToken,
+		teamId,
 	};
 }

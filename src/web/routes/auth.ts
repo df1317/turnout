@@ -31,7 +31,12 @@ auth.get("/callback", async (c) => {
 		return c.redirect("/?error=invalid_state");
 
 	try {
-		const { userId, name, avatarUrl } = await exchangeCode(c.env, code);
+		const { userId, name, avatarUrl, teamId } = await exchangeCode(c.env, code);
+
+		if (c.env.SLACK_TEAM_ID && teamId !== c.env.SLACK_TEAM_ID) {
+			return c.redirect(`/?error=${encodeURIComponent("wrong_workspace")}`);
+		}
+
 		const now = Math.floor(Date.now() / 1000);
 
 		// Check if user is an admin by querying Slack API with bot token
