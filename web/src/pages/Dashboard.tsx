@@ -107,7 +107,7 @@ function FeaturedMeeting({
 							</span>
 						</p>
 						{meeting.description && (
-							<p className="mt-2 text-muted-foreground text-sm leading-relaxed">
+							<p className="mt-2 whitespace-pre-wrap text-muted-foreground text-sm leading-relaxed">
 								{meeting.description}
 							</p>
 						)}

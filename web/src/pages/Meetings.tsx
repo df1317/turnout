@@ -682,7 +682,7 @@ function AdminMeetingsView() {
 							)}
 						</div>
 						{row.original.description && (
-							<span className="max-w-[200px] truncate text-muted-foreground text-xs">
+							<span className="max-w-[200px] whitespace-pre-wrap truncate text-muted-foreground text-xs">
 								{row.original.description}
 							</span>
 						)}
@@ -977,7 +977,7 @@ function UpcomingMeetingsView({
 					<div className="flex flex-col">
 						<span className="font-medium">{row.original.name}</span>
 						{row.original.description && (
-							<span className="max-w-[200px] truncate text-muted-foreground text-xs">
+							<span className="max-w-[200px] whitespace-pre-wrap truncate text-muted-foreground text-xs">
 								{row.original.description}
 							</span>
 						)}
@@ -1205,7 +1205,7 @@ function PastMeetingsView() {
 					<div className="flex flex-col">
 						<span className="font-medium">{row.original.name}</span>
 						{row.original.description && (
-							<span className="max-w-[200px] truncate text-muted-foreground text-xs">
+							<span className="max-w-[200px] whitespace-pre-wrap truncate text-muted-foreground text-xs">
 								{row.original.description}
 							</span>
 						)}
