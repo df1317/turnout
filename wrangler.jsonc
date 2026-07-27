@@ -1,15 +1,16 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"account_id": "7a694580d290a26f0bdf97fec4710066",
-	"name": "sirsnap",
+	"name": "turnout",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-04-03",
 	"observability": {
 		"enabled": true
 	},
 	"upload_source_maps": true,
-	"compatibility_flags": ["nodejs_compat"],
-
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
 	"d1_databases": [
 		{
 			"binding": "DB",
@@ -25,10 +26,13 @@
 	 */
 	"vars": {
 		"NODE_ENV": "production",
-		"HOST": "https://sirsnap.programming-aaaaaeyr6ul5biewy5byj6ykgq.workers.dev"
+		"HOST": "https://turnout.df1317.workers.dev"
 	},
 	"triggers": {
-		"crons": ["* * * * *", "0 6 * * *"]
+		"crons": [
+			"* * * * *",
+			"0 6 * * *"
+		]
 	},
 	"assets": {
 		"directory": "./web/dist",
