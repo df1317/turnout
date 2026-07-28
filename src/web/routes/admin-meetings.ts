@@ -15,6 +15,7 @@ import * as schema from "../../db/schema";
 import type { Env } from "../../index";
 import {
 	buildAnnouncementBlocks,
+	getAnnouncementWindowSeconds,
 	updateAnnouncement,
 } from "../../lib/announcements";
 import { generateDates } from "../../lib/recurrence";
@@ -99,8 +100,8 @@ adminMeetings.post("/", async (c) => {
 	if (!name) return c.json({ error: "Name is required" }, 400);
 
 	const now = Math.floor(Date.now() / 1000);
-	const twoWeeksInSeconds = 14 * 24 * 60 * 60;
-	const shouldAnnounceNow = scheduled_at <= now + twoWeeksInSeconds;
+	const windowSeconds = await getAnnouncementWindowSeconds(c.env.DB);
+	const shouldAnnounceNow = scheduled_at <= now + windowSeconds;
 
 	let message_ts: string | null = null;
 
@@ -181,6 +182,7 @@ adminMeetings.put("/:id", async (c) => {
 		description?: string;
 		scheduled_at?: number;
 		end_time?: number | null;
+		channel_id?: string;
 	}>();
 
 	type MeetingUpdate = Partial<typeof schema.meeting.$inferInsert>;
@@ -190,11 +192,23 @@ adminMeetings.put("/:id", async (c) => {
 	if (body.scheduled_at !== undefined)
 		updateSet.scheduledAt = body.scheduled_at;
 	if (body.end_time !== undefined) updateSet.endTime = body.end_time;
+	if (body.channel_id !== undefined) updateSet.channelId = body.channel_id;
 
 	if (Object.keys(updateSet).length === 0)
 		return c.json({ error: "No fields to update" }, 400);
 
 	const db = drizzle(c.env.DB);
+
+	// Fetch the current row before updating so we can detect channel changes
+	const oldRow = await db
+		.select({
+			channel_id: schema.meeting.channelId,
+			message_ts: schema.meeting.messageTs,
+		})
+		.from(schema.meeting)
+		.where(eq(schema.meeting.id, id))
+		.get();
+
 	await db
 		.update(schema.meeting)
 		.set(updateSet)
@@ -215,8 +229,77 @@ adminMeetings.put("/:id", async (c) => {
 		.where(eq(schema.meeting.id, id))
 		.get();
 
-	if (meetingRow) {
-		const botClient = new SlackAPIClient(c.env.SLACK_BOT_TOKEN);
+	if (!meetingRow) return c.json({ ok: true });
+
+	const botClient = new SlackAPIClient(c.env.SLACK_BOT_TOKEN);
+	const channelChanged =
+		body.channel_id !== undefined &&
+		oldRow &&
+		body.channel_id !== oldRow.channel_id;
+
+	if (channelChanged && oldRow) {
+		// Delete the old announcement from the previous channel
+		if (oldRow.message_ts && oldRow.channel_id) {
+			await botClient.chat
+				.delete({ channel: oldRow.channel_id, ts: oldRow.message_ts })
+				.catch((err) =>
+					console.error("failed to delete old announcement:", err),
+				);
+		}
+
+		// Repost in the new channel if the meeting is upcoming and within the window
+		const now = Math.floor(Date.now() / 1000);
+		const windowSeconds = await getAnnouncementWindowSeconds(c.env.DB);
+		const endTime = meetingRow.end_time ?? meetingRow.scheduled_at + 3 * 3600;
+		const inWindow = meetingRow.scheduled_at <= now + windowSeconds;
+		const notPast = endTime > now;
+
+		if (
+			meetingRow.channel_id &&
+			meetingRow.cancelled !== 1 &&
+			inWindow &&
+			notPast
+		) {
+			const attendanceRows = await db
+				.select({
+					user_id: schema.attendance.userId,
+					status: schema.attendance.status,
+				})
+				.from(schema.attendance)
+				.where(eq(schema.attendance.meetingId, id));
+			const attendees = {
+				yes: [] as string[],
+				maybe: [] as string[],
+				no: [] as string[],
+			};
+			for (const row of attendanceRows) {
+				attendees[row.status as "yes" | "maybe" | "no"].push(row.user_id);
+			}
+
+			const blocks = buildAnnouncementBlocks(meetingRow, attendees);
+			try {
+				const posted = (await postWithJoin(botClient, meetingRow.channel_id, {
+					channel: meetingRow.channel_id,
+					text: `Meeting: ${meetingRow.name}`,
+					blocks,
+				})) as { ts?: string };
+				if (posted.ts) {
+					await db
+						.update(schema.meeting)
+						.set({ messageTs: posted.ts })
+						.where(eq(schema.meeting.id, id));
+				}
+			} catch (err) {
+				console.error("failed to repost announcement in new channel:", err);
+			}
+		} else {
+			// Clear the stale message_ts so checkPendingMeetings can pick it up later
+			await db
+				.update(schema.meeting)
+				.set({ messageTs: "" })
+				.where(eq(schema.meeting.id, id));
+		}
+	} else {
 		await updateAnnouncement(botClient, c.env.DB, meetingRow).catch((err) =>
 			console.error("meeting update announcement failed:", err),
 		);
@@ -319,11 +402,11 @@ adminMeetings.post("/series", async (c) => {
 	}[] = [];
 
 	const now = Math.floor(Date.now() / 1000);
-	const twoWeeksInSeconds = 14 * 24 * 60 * 60;
+	const windowSeconds = await getAnnouncementWindowSeconds(c.env.DB);
 
 	for (const ts of dates) {
 		let message_ts: string | null = null;
-		const shouldAnnounceNow = ts <= now + twoWeeksInSeconds;
+		const shouldAnnounceNow = ts <= now + windowSeconds;
 		const end_time = duration_minutes ? ts + duration_minutes * 60 : null;
 
 		const result = await db
@@ -440,7 +523,7 @@ adminMeetings.post("/import-ics", async (c) => {
 
 		const botClient = new SlackAPIClient(c.env.SLACK_BOT_TOKEN);
 		const now = Math.floor(Date.now() / 1000);
-		const twoWeeksInSeconds = 14 * 24 * 60 * 60;
+		const windowSeconds = await getAnnouncementWindowSeconds(c.env.DB);
 
 		// Hoist settings reads outside the loop — they don't change per event
 		let defaultMeetingLength = 3;
@@ -537,7 +620,7 @@ adminMeetings.post("/import-ics", async (c) => {
 			}
 
 			let message_ts: string | null = null;
-			const shouldAnnounceNow = scheduled_at <= now + twoWeeksInSeconds;
+			const shouldAnnounceNow = scheduled_at <= now + windowSeconds;
 
 			const result = await db
 				.insert(schema.meeting)

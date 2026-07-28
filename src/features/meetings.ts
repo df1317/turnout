@@ -11,6 +11,7 @@ import { isAdmin } from "../lib/admin";
 import {
 	updateAnnouncement as _updateAnnouncement,
 	buildAnnouncementBlocks,
+	getAnnouncementWindowSeconds,
 } from "../lib/announcements";
 import { generateDates } from "../lib/recurrence";
 import { flattenState, postWithJoin } from "../lib/slack-utils";
@@ -450,6 +451,9 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 
 					if (!series) return;
 
+					const now = Math.floor(Date.now() / 1000);
+					const windowSeconds = await getAnnouncementWindowSeconds(env.DB);
+
 					for (const scheduled_at of generateDates(
 						days,
 						timeOfDay,
@@ -474,6 +478,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 							.get();
 						const row = rowResult ? { id: rowResult.id } : undefined;
 						if (!row) continue;
+						if (scheduled_at > now + windowSeconds) continue;
 						const post = await postWithJoin(client, channelId, {
 							channel: channelId,
 							text: `New meeting: ${name}`,

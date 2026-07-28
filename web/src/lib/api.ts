@@ -263,6 +263,7 @@ export const api = {
 			description?: string;
 			scheduled_at?: number;
 			end_time?: number | null;
+			channel_id?: string;
 		},
 	): Promise<void> {
 		await apiFetch(`/api/admin/meetings/${id}`, {

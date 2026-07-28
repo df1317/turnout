@@ -1,8 +1,35 @@
 import { and, eq, gt, inArray, lte, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { SlackAPIClient } from "slack-web-api-client";
-import { attendance, meeting, pendingAnnouncement } from "../db/schema";
+import {
+	attendance,
+	kvStore,
+	meeting,
+	pendingAnnouncement,
+} from "../db/schema";
 import type { Env } from "../index";
+
+/** Default number of days in advance that meetings get announced. */
+const DEFAULT_ANNOUNCEMENT_WINDOW_DAYS = 14;
+
+/**
+ * Read the announcement window (how far ahead a meeting is announced) from
+ * settings, in seconds. Falls back to 14 days when unset or invalid.
+ */
+export async function getAnnouncementWindowSeconds(
+	d1: D1Database,
+): Promise<number> {
+	const db = drizzle(d1);
+	const row = await db
+		.select({ value: kvStore.value })
+		.from(kvStore)
+		.where(eq(kvStore.key, "announcement_window_days"))
+		.get();
+	const days = row?.value ? Number.parseInt(row.value, 10) : Number.NaN;
+	const effective =
+		Number.isFinite(days) && days > 0 ? days : DEFAULT_ANNOUNCEMENT_WINDOW_DAYS;
+	return effective * 24 * 60 * 60;
+}
 
 export function buildAnnouncementBlocks(
 	m: {
@@ -148,8 +175,8 @@ export async function updateAnnouncement(
 
 export async function checkPendingMeetings(env: Env) {
 	const now = Math.floor(Date.now() / 1000);
-	const twoWeeksInSeconds = 14 * 24 * 60 * 60;
-	const threshold = now + twoWeeksInSeconds;
+	const windowSeconds = await getAnnouncementWindowSeconds(env.DB);
+	const threshold = now + windowSeconds;
 
 	const db = drizzle(env.DB);
 	const pending = await db

@@ -393,6 +393,7 @@ function EditMeetingDialog({
 		`${String(initial.getHours()).padStart(2, "0")}:${String(initial.getMinutes()).padStart(2, "0")}`,
 	);
 	const [endTime, setEndTime] = useState(initialEndTimeStr);
+	const [channel, setChannel] = useState(meeting.channel_id);
 	const [saving, setSaving] = useState(false);
 
 	const handleSave = async () => {
@@ -419,6 +420,7 @@ function EditMeetingDialog({
 				description: desc.trim() || undefined,
 				scheduled_at: scheduledAt,
 				end_time: endUnix,
+				channel_id: channel !== meeting.channel_id ? channel : undefined,
 			});
 			invalidateCache(CACHE_KEYS.meetings);
 			onSaved({
@@ -427,6 +429,7 @@ function EditMeetingDialog({
 				description: desc.trim(),
 				scheduled_at: scheduledAt ?? meeting.scheduled_at,
 				end_time: endUnix ?? meeting.end_time,
+				channel_id: channel,
 			});
 		} finally {
 			setSaving(false);
@@ -492,6 +495,18 @@ function EditMeetingDialog({
 								value={endTime}
 								onChange={(e) => setEndTime(e.target.value)}
 								className="h-8 w-28 text-xs"
+							/>
+						</div>
+					</div>
+					<div className="space-y-1.5">
+						<label htmlFor="edit-channel" className="font-medium text-xs">
+							Channel
+						</label>
+						<div id="edit-channel">
+							<ChannelPicker
+								value={channel}
+								onChange={setChannel}
+								className="h-8 text-xs"
 							/>
 						</div>
 					</div>

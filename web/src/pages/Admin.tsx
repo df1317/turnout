@@ -29,6 +29,7 @@ export function AdminPage({ session }: { session: Session }) {
 	const [url, setUrl] = useState("");
 	const [channel, setChannel] = useState("");
 	const [defaultMeetingLength, setDefaultMeetingLength] = useState("3");
+	const [announcementWindowDays, setAnnouncementWindowDays] = useState("14");
 	const [importing, setImporting] = useState(false);
 	const [importResult, setImportResult] = useState<string | null>(null);
 	const [savingSettings, setSavingSettings] = useState(false);
@@ -49,6 +50,9 @@ export function AdminPage({ session }: { session: Session }) {
 			});
 			api.getSetting("default_meeting_length").then((val) => {
 				if (val) setDefaultMeetingLength(val);
+			});
+			api.getSetting("announcement_window_days").then((val) => {
+				if (val) setAnnouncementWindowDays(val);
 			});
 			api.getSetting("teamsnap_token").then((val) => {
 				if (val) setTeamSnapToken(val);
@@ -102,6 +106,7 @@ export function AdminPage({ session }: { session: Session }) {
 		try {
 			await api.setSetting("default_channel", channel);
 			await api.setSetting("default_meeting_length", defaultMeetingLength);
+			await api.setSetting("announcement_window_days", announcementWindowDays);
 			toast.success("Settings saved.");
 		} catch (err) {
 			toast.error(
@@ -362,6 +367,26 @@ export function AdminPage({ session }: { session: Session }) {
 								<p className="mt-1 text-muted-foreground text-xs">
 									Used as the default length for meetings when an end time is
 									not specified.
+								</p>
+							</div>
+							<div className="flex flex-col space-y-1.5">
+								<label
+									htmlFor="announcement-window-input"
+									className="font-medium text-xs"
+								>
+									Announcement Window (days)
+								</label>
+								<Input
+									id="announcement-window-input"
+									type="number"
+									min="1"
+									max="365"
+									value={announcementWindowDays}
+									onChange={(e) => setAnnouncementWindowDays(e.target.value)}
+									className="h-8 text-xs"
+								/>
+								<p className="mt-1 text-muted-foreground text-xs">
+									How far in advance meetings are announced to their channel.
 								</p>
 							</div>
 						</CardContent>
