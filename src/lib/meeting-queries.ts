@@ -54,7 +54,7 @@ function normalizeCounts(r: MeetingWithCounts): MeetingWithCounts {
 }
 
 /** Filter for upcoming (non-cancelled) meetings visible to a user. */
-export function upcomingMeetingFilter(now: number, userId?: string) {
+export function upcomingMeetingFilter(now: number, _userId?: string) {
 	const conditions = [
 		eq(schema.meeting.cancelled, 0),
 		or(

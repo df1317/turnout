@@ -209,7 +209,6 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 			const db = drizzle(env.DB);
 
 			// Get the note from the modal's current state
-			// biome-ignore lint/suspicious/noExplicitAny: view state shape is untyped
 			const note: string =
 				(p.view as any)?.state?.values?.rsvp_note_block?.rsvp_note?.value ?? "";
 

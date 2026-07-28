@@ -505,7 +505,7 @@ export function Dashboard({ session }: { session: Session }) {
 								<h2 className="font-semibold text-[13px] text-muted-foreground uppercase tracking-wider">
 									Recent Meetings
 								</h2>
-								<Card className="overflow-hidden py-0 gap-0">
+								<Card className="gap-0 overflow-hidden py-0">
 									{pastMeetings.map((m, i) => {
 										const d = new Date(m.scheduled_at * 1000);
 										const month = d
@@ -574,7 +574,7 @@ export function Dashboard({ session }: { session: Session }) {
 						<h2 className="font-semibold text-[13px] text-muted-foreground uppercase tracking-wider">
 							Upcoming · {rest.length}
 						</h2>
-						<Card className="overflow-hidden py-0 gap-0">
+						<Card className="gap-0 overflow-hidden py-0">
 							{rest.map((m, i) => (
 								<div key={m.id}>
 									<Link

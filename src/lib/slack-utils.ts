@@ -41,7 +41,6 @@ export async function postWithJoin(
 /**
  * Flatten Slack Block Kit state_values into a single key-value map.
  */
-// biome-ignore lint/suspicious/noExplicitAny: Slack block state shapes are dynamic and untyped
 export function flattenState(
 	stateValues: Record<string, Record<string, any>>,
 ): Record<string, any> {
