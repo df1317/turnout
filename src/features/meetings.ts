@@ -428,7 +428,11 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 					const endDate = new Date(flat.end_date?.selected_date ?? "");
 					endDate.setUTCHours(23, 59, 59, 0);
 					const endUnix = Math.floor(endDate.getTime() / 1000);
-					const startUnix = Math.floor(Date.now() / 1000);
+					const startDate = new Date(
+						`${flat.start_date?.selected_date ?? ""}T00:00:00Z`,
+					);
+					const startUnix =
+						Math.floor(startDate.getTime() / 1000) + timeOfDay * 60;
 
 					const db = drizzle(env.DB);
 					const seriesResult = await db

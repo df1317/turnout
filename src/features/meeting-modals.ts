@@ -153,6 +153,16 @@ export function buildCreateModal(isRecurring: boolean): Modal {
 				},
 				{
 					type: "input",
+					block_id: "start_date_block",
+					element: {
+						type: "datepicker",
+						action_id: "start_date",
+						initial_date: new Date().toISOString().slice(0, 10),
+					},
+					label: { type: "plain_text", text: "Start date" },
+				},
+				{
+					type: "input",
 					block_id: "end_date_block",
 					element: { type: "datepicker", action_id: "end_date" },
 					label: { type: "plain_text", text: "Repeat until" },
