@@ -46,6 +46,7 @@ export type AdminMeeting = {
 	scheduled_at: number;
 	end_time: number | null;
 	channel_id: string;
+	message_ts: string | null;
 	cancelled: boolean;
 	series_id: number | null;
 	yes_count: number;
@@ -271,6 +272,11 @@ export const api = {
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(data),
 		});
+	},
+	async postMeetingNow(id: number): Promise<{ message_ts: string | null }> {
+		return (
+			await apiFetch(`/api/admin/meetings/${id}/post`, { method: "POST" })
+		).json();
 	},
 	async cancelMeeting(id: number, cancelled: boolean): Promise<void> {
 		await apiFetch(`/api/admin/meetings/${id}/cancel`, {

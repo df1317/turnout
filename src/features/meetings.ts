@@ -160,7 +160,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 		if (!value) return;
 		const meetingId = Number(value);
 		const db = drizzle(env.DB);
-		const [adminUser, meetingRow, rsvpRow] = await Promise.all([
+		const [adminUser, meetingRow, rsvpRow, windowSeconds] = await Promise.all([
 			isAdmin(env.DB, context.client, userId),
 			db
 				.select({
@@ -170,6 +170,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 					scheduled_at: meetingTable.scheduledAt,
 					end_time: meetingTable.endTime,
 					channel_id: meetingTable.channelId,
+					message_ts: meetingTable.messageTs,
 					cancelled: meetingTable.cancelled,
 				})
 				.from(meetingTable)
@@ -188,13 +189,19 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 					),
 				)
 				.get(),
+			getAnnouncementWindowSeconds(env.DB),
 		]);
 
 		if (!meetingRow) return;
 
 		await context.client.views.push({
 			trigger_id: p.trigger_id,
-			view: buildEditModal(meetingRow, adminUser, rsvpRow ?? undefined),
+			view: buildEditModal(
+				meetingRow,
+				adminUser,
+				rsvpRow ?? undefined,
+				windowSeconds,
+			),
 		});
 	});
 
@@ -222,7 +229,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 				.run();
 
 			// Refresh the modal to show updated RSVP state
-			const [adminUser, meetingRow] = await Promise.all([
+			const [adminUser, meetingRow, windowSeconds] = await Promise.all([
 				isAdmin(env.DB, context.client, userId),
 				db
 					.select({
@@ -232,11 +239,13 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 						scheduled_at: meetingTable.scheduledAt,
 						end_time: meetingTable.endTime,
 						channel_id: meetingTable.channelId,
+						message_ts: meetingTable.messageTs,
 						cancelled: meetingTable.cancelled,
 					})
 					.from(meetingTable)
 					.where(eq(meetingTable.id, meetingId))
 					.get(),
+				getAnnouncementWindowSeconds(env.DB),
 			]);
 
 			if (!meetingRow || !p.view) return;
@@ -244,7 +253,12 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 			await context.client.views.update({
 				view_id: p.view.id,
 				hash: p.view.hash,
-				view: buildEditModal(meetingRow, adminUser, { status, note }),
+				view: buildEditModal(
+					meetingRow,
+					adminUser,
+					{ status, note },
+					windowSeconds,
+				),
 			});
 		});
 	}
@@ -289,10 +303,11 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 			.where(eq(meetingTable.id, meetingId))
 			.get();
 		if (meeting) {
+			const windowSeconds = await getAnnouncementWindowSeconds(env.DB);
 			await Promise.all([
 				context.client.views.update({
 					view_id: p.view!.id,
-					view: buildEditModal(meeting, true),
+					view: buildEditModal(meeting, true, undefined, windowSeconds),
 				}),
 				updateAnnouncement(context.client, env, meeting),
 				rootViewId
@@ -332,10 +347,11 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 			.where(eq(meetingTable.id, meetingId))
 			.get();
 		if (meeting) {
+			const windowSeconds = await getAnnouncementWindowSeconds(env.DB);
 			await Promise.all([
 				context.client.views.update({
 					view_id: p.view!.id,
-					view: buildEditModal(meeting, true),
+					view: buildEditModal(meeting, true, undefined, windowSeconds),
 				}),
 				updateAnnouncement(context.client, env, meeting),
 				rootViewId
@@ -343,6 +359,73 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 					: Promise.resolve(),
 			]);
 		}
+	});
+
+	slackApp.action("meeting_post_now", async ({ context, payload }) => {
+		const userId = context.userId;
+		if (!userId) return;
+		if (!(await isAdmin(env.DB, context.client, userId))) return;
+		const p = payload as BlockActionPayload;
+		const value = p.actions?.[0]?.value;
+		if (!value) return;
+		const meetingId = Number(value);
+		const rootViewId = p.view?.root_view_id;
+		const db = drizzle(env.DB);
+		const meeting = await db
+			.select({
+				id: meetingTable.id,
+				name: meetingTable.name,
+				description: meetingTable.description,
+				scheduled_at: meetingTable.scheduledAt,
+				end_time: meetingTable.endTime,
+				channel_id: meetingTable.channelId,
+				message_ts: meetingTable.messageTs,
+				cancelled: meetingTable.cancelled,
+			})
+			.from(meetingTable)
+			.where(eq(meetingTable.id, meetingId))
+			.get();
+		if (!meeting || meeting.cancelled || !meeting.channel_id) return;
+
+		// Only post if it hasn't been announced yet; otherwise this is a no-op
+		// refresh (e.g. two admins clicked at once).
+		if (!meeting.message_ts) {
+			const post = await postWithJoin(context.client, meeting.channel_id, {
+				channel: meeting.channel_id,
+				text: `Meeting: ${meeting.name}`,
+				blocks: buildAnnouncementBlocks(meeting, {
+					yes: [],
+					maybe: [],
+					no: [],
+				}),
+			}).catch((err: unknown) => {
+				console.error(
+					`Failed to post meeting ${meeting.id} to ${meeting.channel_id}:`,
+					err,
+				);
+				return null;
+			});
+			if (post) {
+				meeting.channel_id = (post as { channel: string }).channel;
+				meeting.message_ts = (post as { ts: string }).ts;
+				await db
+					.update(meetingTable)
+					.set({ channelId: meeting.channel_id, messageTs: meeting.message_ts })
+					.where(eq(meetingTable.id, meetingId))
+					.run();
+			}
+		}
+
+		const windowSeconds = await getAnnouncementWindowSeconds(env.DB);
+		await Promise.all([
+			context.client.views.update({
+				view_id: p.view!.id,
+				view: buildEditModal(meeting, true, undefined, windowSeconds),
+			}),
+			rootViewId
+				? refreshListView(context.client, env, rootViewId, true)
+				: Promise.resolve(),
+		]);
 	});
 
 	slackApp.action("meeting_delete", async ({ context, payload }) => {

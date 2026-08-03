@@ -203,6 +203,61 @@ export function buildCreateModal(isRecurring: boolean): Modal {
 	};
 }
 
+/**
+ * Describe whether/when a meeting's announcement will be posted, for the
+ * admin subtitle in the edit modal. `canPostNow` gates the "Post Now" button.
+ */
+function buildPostingStatus(
+	meeting: {
+		scheduled_at: number;
+		channel_id: string;
+		message_ts?: string | null;
+		cancelled: number;
+	},
+	announcementWindowSeconds?: number,
+): { text: string; canPostNow: boolean } {
+	if (meeting.cancelled) {
+		return {
+			text: "This meeting is cancelled and won't be posted.",
+			canPostNow: false,
+		};
+	}
+	const now = Math.floor(Date.now() / 1000);
+	if (!meeting.channel_id) {
+		let when = "immediately";
+		if (announcementWindowSeconds != null) {
+			const postAt = meeting.scheduled_at - announcementWindowSeconds;
+			if (postAt > now) {
+				when = `on <!date^${postAt}^{date_long_pretty} at {time}|${new Date(postAt * 1000).toISOString()}>`;
+			}
+		}
+		return {
+			text: `Pick a channel below to announce it — it would post ${when}.`,
+			canPostNow: false,
+		};
+	}
+	if (meeting.message_ts) {
+		return {
+			text: `Posted in <#${meeting.channel_id}>.`,
+			canPostNow: false,
+		};
+	}
+	if (announcementWindowSeconds != null) {
+		const postAt = meeting.scheduled_at - announcementWindowSeconds;
+		if (postAt > now) {
+			const postAtStr = `<!date^${postAt}^{date_long_pretty} at {time}|${new Date(postAt * 1000).toISOString()}>`;
+			return {
+				text: `Will auto-post in <#${meeting.channel_id}> on ${postAtStr}. Use *Post Now* to announce it early.`,
+				canPostNow: true,
+			};
+		}
+	}
+	return {
+		text: `Set to post in <#${meeting.channel_id}>. It should appear shortly. Use *Post Now* to announce it immediately.`,
+		canPostNow: true,
+	};
+}
+
 export function buildEditModal(
 	meeting: {
 		id: number;
@@ -211,11 +266,14 @@ export function buildEditModal(
 		scheduled_at: number;
 		end_time: number | null;
 		channel_id: string;
+		message_ts?: string | null;
 		cancelled: number;
 	},
 	isAdmin: boolean,
 	currentRsvp?: { status: string; note: string },
+	announcementWindowSeconds?: number,
 ): Modal {
+	const posting = buildPostingStatus(meeting, announcementWindowSeconds);
 	const actionButtons: Block[] = meeting.cancelled
 		? [
 				{
@@ -245,6 +303,16 @@ export function buildEditModal(
 					},
 				},
 			];
+
+	if (posting.canPostNow) {
+		actionButtons.unshift({
+			type: "button",
+			text: { type: "plain_text", text: "Post Now" },
+			action_id: "meeting_post_now",
+			value: String(meeting.id),
+			style: "primary",
+		});
+	}
 
 	actionButtons.push({
 		type: "button",
@@ -365,6 +433,10 @@ export function buildEditModal(
 					filter: { include: ["public", "private"] },
 				},
 				label: { type: "plain_text", text: "Channel" },
+			},
+			{
+				type: "context",
+				elements: [{ type: "mrkdwn", text: posting.text }],
 			},
 			{ type: "divider" },
 			{ type: "actions", elements: actionButtons },

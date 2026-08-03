@@ -67,6 +67,55 @@ import { cn } from "../lib/utils";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+const DEFAULT_ANNOUNCEMENT_WINDOW_DAYS = 14;
+
+/**
+ * Describe whether/when a meeting's Slack announcement will be posted, mirroring
+ * the subtitle shown in the Slack edit modal. `canPostNow` gates the button.
+ */
+function meetingPostingStatus(
+	m: {
+		scheduled_at: number;
+		channel_id: string;
+		message_ts?: string | null;
+		cancelled: boolean;
+	},
+	windowDays: number,
+): { text: string; canPostNow: boolean } {
+	if (m.cancelled) {
+		return {
+			text: "This meeting is cancelled and won't be posted.",
+			canPostNow: false,
+		};
+	}
+	const now = Math.floor(Date.now() / 1000);
+	if (!m.channel_id) {
+		const postAt = m.scheduled_at - windowDays * 24 * 60 * 60;
+		const when =
+			postAt > now
+				? `on ${format(new Date(postAt * 1000), "MMM d 'at' h:mm a")}`
+				: "immediately";
+		return {
+			text: `Pick a channel to announce it — it would post ${when}.`,
+			canPostNow: false,
+		};
+	}
+	if (m.message_ts) {
+		return { text: "Posted to Slack.", canPostNow: false };
+	}
+	const postAt = m.scheduled_at - windowDays * 24 * 60 * 60;
+	if (postAt > now) {
+		return {
+			text: `Will auto-post ${format(new Date(postAt * 1000), "MMM d 'at' h:mm a")}. Post now to announce it early.`,
+			canPostNow: true,
+		};
+	}
+	return {
+		text: "Set to post — it should appear shortly. Post now to announce it immediately.",
+		canPostNow: true,
+	};
+}
+
 function DatePicker({
 	date,
 	onSelect,
@@ -395,6 +444,33 @@ function EditMeetingDialog({
 	const [endTime, setEndTime] = useState(initialEndTimeStr);
 	const [channel, setChannel] = useState(meeting.channel_id);
 	const [saving, setSaving] = useState(false);
+	const [posting, setPosting] = useState(false);
+	const [windowDays, setWindowDays] = useState(
+		DEFAULT_ANNOUNCEMENT_WINDOW_DAYS,
+	);
+
+	useEffect(() => {
+		api.getSetting("announcement_window_days").then((val) => {
+			const days = val ? Number.parseInt(val, 10) : Number.NaN;
+			if (Number.isFinite(days) && days > 0) setWindowDays(days);
+		});
+	}, []);
+
+	// Posting status reflects the saved meeting, since Post Now announces to the
+	// currently-saved channel — save channel edits before posting.
+	const posted = meetingPostingStatus(meeting, windowDays);
+
+	const handlePostNow = async () => {
+		setPosting(true);
+		try {
+			const { message_ts } = await api.postMeetingNow(meeting.id);
+			invalidateCache(CACHE_KEYS.meetings);
+			onSaved({ ...meeting, message_ts });
+			onClose();
+		} finally {
+			setPosting(false);
+		}
+	};
 
 	const handleSave = async () => {
 		setSaving(true);
@@ -509,15 +585,30 @@ function EditMeetingDialog({
 								className="h-8 text-xs"
 							/>
 						</div>
+						<p className="text-muted-foreground text-xs">{posted.text}</p>
 					</div>
 				</div>
-				<DialogFooter>
-					<Button variant="outline" size="sm" onClick={onClose}>
-						Cancel
-					</Button>
-					<Button size="sm" onClick={handleSave} disabled={saving}>
-						{saving ? "Saving…" : "Save"}
-					</Button>
+				<DialogFooter className="sm:justify-between">
+					{posted.canPostNow ? (
+						<Button
+							variant="secondary"
+							size="sm"
+							onClick={handlePostNow}
+							disabled={posting || saving}
+						>
+							{posting ? "Posting…" : "Post Now"}
+						</Button>
+					) : (
+						<span />
+					)}
+					<div className="flex gap-2">
+						<Button variant="outline" size="sm" onClick={onClose}>
+							Cancel
+						</Button>
+						<Button size="sm" onClick={handleSave} disabled={saving}>
+							{saving ? "Saving…" : "Save"}
+						</Button>
+					</div>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

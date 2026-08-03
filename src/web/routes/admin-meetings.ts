@@ -308,6 +308,77 @@ adminMeetings.put("/:id", async (c) => {
 	return c.json({ ok: true });
 });
 
+adminMeetings.post("/:id/post", async (c) => {
+	const id = Number(c.req.param("id"));
+	const db = drizzle(c.env.DB);
+	const meetingRow = await db
+		.select({
+			id: schema.meeting.id,
+			name: schema.meeting.name,
+			description: schema.meeting.description,
+			scheduled_at: schema.meeting.scheduledAt,
+			end_time: schema.meeting.endTime,
+			channel_id: schema.meeting.channelId,
+			message_ts: schema.meeting.messageTs,
+			cancelled: schema.meeting.cancelled,
+		})
+		.from(schema.meeting)
+		.where(eq(schema.meeting.id, id))
+		.get();
+
+	if (!meetingRow) return c.json({ error: "Meeting not found" }, 404);
+	if (meetingRow.cancelled === 1)
+		return c.json({ error: "Meeting is cancelled" }, 400);
+	if (!meetingRow.channel_id)
+		return c.json({ error: "No channel selected for this meeting" }, 400);
+	// Already announced — nothing to do, just report the existing message.
+	if (meetingRow.message_ts)
+		return c.json({ message_ts: meetingRow.message_ts });
+
+	const attendanceRows = await db
+		.select({
+			user_id: schema.attendance.userId,
+			status: schema.attendance.status,
+		})
+		.from(schema.attendance)
+		.where(eq(schema.attendance.meetingId, id));
+	const attendees = {
+		yes: [] as string[],
+		maybe: [] as string[],
+		no: [] as string[],
+	};
+	for (const row of attendanceRows) {
+		attendees[row.status as "yes" | "maybe" | "no"].push(row.user_id);
+	}
+
+	const botClient = new SlackAPIClient(c.env.SLACK_BOT_TOKEN);
+	try {
+		const posted = (await postWithJoin(botClient, meetingRow.channel_id, {
+			channel: meetingRow.channel_id,
+			text: `Meeting: ${meetingRow.name}`,
+			blocks: buildAnnouncementBlocks(meetingRow, attendees),
+		})) as { ts?: string; channel?: string };
+
+		const message_ts = posted.ts ?? null;
+		if (message_ts) {
+			await db
+				.update(schema.meeting)
+				.set({
+					messageTs: message_ts,
+					channelId: posted.channel ?? meetingRow.channel_id,
+				})
+				.where(eq(schema.meeting.id, id));
+		}
+		return c.json({ message_ts });
+	} catch (err) {
+		console.error(`Failed to post meeting ${id}:`, err);
+		return c.json(
+			{ error: `Failed to post announcement: ${(err as Error).message}` },
+			500,
+		);
+	}
+});
+
 adminMeetings.post("/:id/cancel", async (c) => {
 	const id = Number(c.req.param("id"));
 	const { cancelled } = await c.req.json<{ cancelled: boolean }>();
