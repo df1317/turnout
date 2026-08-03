@@ -359,7 +359,9 @@ export function buildEditModal(
 				element: {
 					type: "conversations_select",
 					action_id: "channel",
-					initial_conversation: meeting.channel_id,
+					...(meeting.channel_id
+						? { initial_conversation: meeting.channel_id }
+						: {}),
 					filter: { include: ["public", "private"] },
 				},
 				label: { type: "plain_text", text: "Channel" },
