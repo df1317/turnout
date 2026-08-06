@@ -424,6 +424,7 @@ adminMeetings.post("/series", async (c) => {
 		channel_id?: string;
 		days_of_week: number[];
 		time_of_day_minutes: number;
+		time_zone?: string;
 		end_date: number;
 	}>();
 	const {
@@ -434,6 +435,8 @@ adminMeetings.post("/series", async (c) => {
 		channel_id,
 		days_of_week,
 		time_of_day_minutes,
+		// time_of_day_minutes is wall-clock, so it needs the client's timezone.
+		time_zone = "UTC",
 		end_date,
 	} = body;
 	if (!name || !days_of_week.length || !end_date)
@@ -444,6 +447,7 @@ adminMeetings.post("/series", async (c) => {
 		time_of_day_minutes,
 		scheduled_at,
 		end_date,
+		time_zone,
 	);
 	if (dates.length === 0)
 		return c.json({ error: "No occurrences generated" }, 400);

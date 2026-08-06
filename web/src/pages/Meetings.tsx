@@ -221,6 +221,7 @@ function CreateMeetingDialog({
 					channel_id: channel || undefined,
 					days_of_week: selectedDays,
 					time_of_day_minutes: timeOfDayMinutes,
+					time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 					end_date: endSeriesUnix,
 				});
 				invalidateCache(CACHE_KEYS.meetings, CACHE_KEYS.pastMeetings);

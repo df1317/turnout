@@ -13,8 +13,9 @@ import {
 	buildAnnouncementBlocks,
 	getAnnouncementWindowSeconds,
 } from "../lib/announcements";
-import { generateDates } from "../lib/recurrence";
+import { generateDates, zonedDateTimeToUnix } from "../lib/recurrence";
 import { flattenState, postWithJoin } from "../lib/slack-utils";
+import { getUserTimeZone } from "../lib/users";
 import {
 	buildCreateModal,
 	buildEditModal,
@@ -508,14 +509,20 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 					const days: number[] = (flat.days?.selected_options ?? []).map(
 						(o: { value: string }) => Number(o.value),
 					);
-					const endDate = new Date(flat.end_date?.selected_date ?? "");
-					endDate.setUTCHours(23, 59, 59, 0);
-					const endUnix = Math.floor(endDate.getTime() / 1000);
-					const startDate = new Date(
-						`${flat.start_date?.selected_date ?? ""}T00:00:00Z`,
+					// The timepicker reports wall-clock time, so occurrences have to be
+					// generated in the submitter's timezone rather than UTC.
+					const timeZone: string =
+						flat.time?.timezone ?? (await getUserTimeZone(client, p.user.id));
+					const endUnix = zonedDateTimeToUnix(
+						flat.end_date?.selected_date ?? "",
+						23 * 60 + 59,
+						timeZone,
 					);
-					const startUnix =
-						Math.floor(startDate.getTime() / 1000) + timeOfDay * 60;
+					const startUnix = zonedDateTimeToUnix(
+						flat.start_date?.selected_date ?? "",
+						timeOfDay,
+						timeZone,
+					);
 
 					const db = drizzle(env.DB);
 					const seriesResult = await db
@@ -541,6 +548,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 						timeOfDay,
 						startUnix,
 						endUnix,
+						timeZone,
 					)) {
 						const end_time = duration_minutes
 							? scheduled_at + duration_minutes * 60

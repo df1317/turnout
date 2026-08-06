@@ -80,6 +80,18 @@ export async function getUser(
 	};
 }
 
+/** IANA timezone the user has set in Slack, falling back to UTC. */
+export async function getUserTimeZone(
+	client: SlackAPIClient,
+	userId: string,
+): Promise<string> {
+	const result = await client.users
+		.info({ user: userId })
+		.catch(() => undefined);
+	// biome-ignore lint/suspicious/noExplicitAny: need to use any here for now
+	return (result?.user as any)?.tz || "UTC";
+}
+
 export async function setProfile(
 	adminClient: SlackAPIClient,
 	userId: string,

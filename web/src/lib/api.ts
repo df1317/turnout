@@ -247,6 +247,7 @@ export const api = {
 		channel_id?: string;
 		days_of_week: number[];
 		time_of_day_minutes: number;
+		time_zone?: string;
 		end_date: number;
 	}): Promise<AdminMeeting> {
 		return (
