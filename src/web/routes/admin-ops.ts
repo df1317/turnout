@@ -1,15 +1,4 @@
-import {
-	and,
-	count,
-	sql as drizzleSql,
-	eq,
-	gt,
-	isNotNull,
-	isNull,
-	lte,
-	ne,
-	or,
-} from "drizzle-orm";
+import { and, count, sql as drizzleSql, eq, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { Hono } from "hono";
 import * as schema from "../../db/schema";
@@ -20,6 +9,15 @@ import type { Session } from "../middleware/session";
 type Variables = { session: Session | null };
 
 const adminOps = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+/** When a meeting ends: its end time, or three hours after it starts. */
+const endsAt = drizzleSql`coalesce(${schema.meeting.endTime}, ${schema.meeting.scheduledAt} + (3 * 60 * 60))`;
+
+/**
+ * Rows whose message_ts is a real Slack timestamp ("1614987900.001200").
+ * Imported meetings carry placeholders like "none" that chat.update rejects.
+ */
+const hasSlackMessage = drizzleSql`${schema.meeting.messageTs} GLOB '[0-9]*.[0-9]*'`;
 
 adminOps.post("/sync", async (c) => {
 	await syncAllUsers(c.env.DB, c.env.SLACK_ADMIN_TOKEN);
@@ -35,9 +33,9 @@ adminOps.post("/queue-announcements", async (c) => {
 		.where(
 			and(
 				eq(schema.meeting.cancelled, 0),
-				ne(schema.meeting.messageTs, ""),
+				hasSlackMessage,
 				ne(schema.meeting.channelId, ""),
-				or(isNull(schema.meeting.endTime), gt(schema.meeting.endTime, now)),
+				drizzleSql`${endsAt} > ${now}`,
 			),
 		)
 		.all();
@@ -46,10 +44,15 @@ adminOps.post("/queue-announcements", async (c) => {
 		return c.json({ ok: true, count: 0 });
 	}
 
-	for (const m of activeMeetings) {
+	// Queue in batches; one insert per meeting adds up on a large refresh.
+	for (let i = 0; i < activeMeetings.length; i += 100) {
 		await db
 			.insert(schema.pendingAnnouncement)
-			.values({ meetingId: m.id, queuedAt: now })
+			.values(
+				activeMeetings
+					.slice(i, i + 100)
+					.map((m) => ({ meetingId: m.id, queuedAt: now })),
+			)
 			.onConflictDoUpdate({
 				target: schema.pendingAnnouncement.meetingId,
 				set: { queuedAt: now },
@@ -99,38 +102,14 @@ adminOps.get("/stats", async (c) => {
 			.select({ count: count() })
 			.from(schema.meeting)
 			.where(
-				and(
-					eq(schema.meeting.cancelled, 0),
-					or(
-						and(
-							isNotNull(schema.meeting.endTime),
-							gt(schema.meeting.endTime, now),
-						),
-						and(
-							isNull(schema.meeting.endTime),
-							drizzleSql`${schema.meeting.scheduledAt} + (3 * 60 * 60) > ${now}`,
-						),
-					),
-				),
+				and(eq(schema.meeting.cancelled, 0), drizzleSql`${endsAt} > ${now}`),
 			)
 			.get(),
 		db
 			.select({ count: count() })
 			.from(schema.meeting)
 			.where(
-				and(
-					eq(schema.meeting.cancelled, 0),
-					or(
-						and(
-							isNotNull(schema.meeting.endTime),
-							lte(schema.meeting.endTime, now),
-						),
-						and(
-							isNull(schema.meeting.endTime),
-							drizzleSql`${schema.meeting.scheduledAt} + (3 * 60 * 60) <= ${now}`,
-						),
-					),
-				),
+				and(eq(schema.meeting.cancelled, 0), drizzleSql`${endsAt} <= ${now}`),
 			)
 			.get(),
 		db.select({ count: count() }).from(schema.pendingAnnouncement).get(),
