@@ -142,7 +142,9 @@ export async function updateAnnouncement(
 		cancelled: number;
 	},
 ): Promise<void> {
-	if (!m.message_ts) return;
+	// A real Slack ts looks like "1614987900.001200". Imported meetings carry
+	// placeholders such as "none", which chat.update rejects outright.
+	if (!/^\d+\.\d+$/.test(m.message_ts)) return;
 	if (m.cancelled) {
 		await client.chat.update({
 			channel: m.channel_id,
