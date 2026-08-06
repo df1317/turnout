@@ -26,6 +26,7 @@ You can either:
    - `chat:write.public`
    - `channels:join`
    - `channels:read`
+   - `groups:read`
    - `chat:write`
    - `commands`
    - `usergroups:read`

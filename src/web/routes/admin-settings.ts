@@ -52,20 +52,38 @@ adminSettings.get("/slack/channels", async (c) => {
 	const allChannels: { id: string; name: string; is_private: boolean }[] = [];
 	let cursor: string | undefined;
 
+	// Private channels need groups:read. Without it Slack rejects the whole
+	// call, so drop back to public-only rather than returning nothing.
+	let types: ("public_channel" | "private_channel")[] = [
+		"public_channel",
+		"private_channel",
+	];
+
+	type ListResult = {
+		channels?: {
+			id: string;
+			name: string;
+			is_private: boolean;
+			is_archived: boolean;
+		}[];
+		response_metadata?: { next_cursor: string };
+	};
+
 	do {
-		const result = (await botClient.conversations.list({
-			types: ["public_channel", "private_channel"],
-			limit: 1000,
-			...(cursor ? { cursor } : {}),
-		})) as {
-			channels?: {
-				id: string;
-				name: string;
-				is_private: boolean;
-				is_archived: boolean;
-			}[];
-			response_metadata?: { next_cursor: string };
-		};
+		let result: ListResult;
+		try {
+			result = (await botClient.conversations.list({
+				types,
+				limit: 1000,
+				...(cursor ? { cursor } : {}),
+			})) as ListResult;
+		} catch (err) {
+			const missingScope =
+				err instanceof Error && err.message.includes("missing_scope");
+			if (!missingScope || types.length === 1) throw err;
+			types = ["public_channel"];
+			continue;
+		}
 
 		for (const ch of result.channels ?? []) {
 			if (!ch.is_archived) {

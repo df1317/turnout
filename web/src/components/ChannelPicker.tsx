@@ -20,6 +20,7 @@ export function ChannelPicker({
 		{ id: string; name: string; is_private: boolean }[]
 	>([]);
 	const [query, setQuery] = useState("");
+	const [error, setError] = useState<string | null>(null);
 	const [selected, setSelected] = useState<{
 		id: string;
 		name: string;
@@ -29,13 +30,16 @@ export function ChannelPicker({
 
 	useEffect(() => {
 		if (channels.length === 0) {
-			api.getSlackChannels().then((chs) => {
-				setChannels(chs);
-				if (value) {
-					const found = chs.find((c) => c.id === value);
-					if (found) setSelected(found);
-				}
-			});
+			api
+				.getSlackChannels()
+				.then((chs) => {
+					setChannels(chs);
+					if (value) {
+						const found = chs.find((c) => c.id === value);
+						if (found) setSelected(found);
+					}
+				})
+				.catch((e: Error) => setError(e.message));
 		} else if (value && !selected) {
 			const found = channels.find((c) => c.id === value);
 			if (found) setSelected(found);
@@ -96,7 +100,12 @@ export function ChannelPicker({
 						className="mb-1 h-8 text-xs"
 					/>
 					<div className="max-h-[200px] overflow-y-auto overscroll-contain">
-						{filtered.length === 0 && (
+						{error && (
+							<p className="px-2 py-1.5 text-destructive text-xs">
+								Couldn't load channels: {error}
+							</p>
+						)}
+						{!error && filtered.length === 0 && (
 							<p className="px-2 py-1.5 text-muted-foreground text-xs">
 								No channels found.
 							</p>
