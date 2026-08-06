@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { Hono } from "hono";
 import * as schema from "../../db/schema";
@@ -37,8 +37,16 @@ calendar.get("/:filename", async (c) => {
 			scheduled_at: schema.meeting.scheduledAt,
 			end_time: schema.meeting.endTime,
 			cancelled: schema.meeting.cancelled,
+			rsvp: schema.attendance.status,
 		})
 		.from(schema.meeting)
+		.leftJoin(
+			schema.attendance,
+			and(
+				eq(schema.attendance.meetingId, schema.meeting.id),
+				eq(schema.attendance.userId, user.user_id),
+			),
+		)
 		.orderBy(asc(schema.meeting.scheduledAt));
 
 	let ics = "BEGIN:VCALENDAR\r\n";
@@ -88,6 +96,16 @@ calendar.get("/:filename", async (c) => {
 			ics += "STATUS:CANCELLED\r\n";
 		} else {
 			ics += "STATUS:CONFIRMED\r\n";
+		}
+
+		// Anything but a "yes" shouldn't block time. Subscribed feeds ignore
+		// PARTSTAT, so free/busy is the only signal clients actually render.
+		if (m.cancelled === 1 || m.rsvp === "no" || m.rsvp === "maybe") {
+			ics += "TRANSP:TRANSPARENT\r\n";
+			ics += "X-MICROSOFT-CDO-BUSYSTATUS:FREE\r\n";
+		} else {
+			ics += "TRANSP:OPAQUE\r\n";
+			ics += "X-MICROSOFT-CDO-BUSYSTATUS:BUSY\r\n";
 		}
 
 		ics += "END:VEVENT\r\n";
