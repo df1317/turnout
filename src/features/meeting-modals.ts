@@ -451,7 +451,7 @@ export function buildEditModal(
 			type: "plain_text",
 			text: isAdmin ? "Edit Meeting" : "RSVP",
 		},
-		...(isAdmin ? { submit: { type: "plain_text", text: "Save" } } : {}),
+		submit: { type: "plain_text", text: isAdmin ? "Save" : "Save Note" },
 		close: { type: "plain_text", text: "Back" },
 		blocks,
 	};

@@ -648,6 +648,22 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 				const p = req.payload as ViewSubmissionPayload;
 				const { meetingId } = JSON.parse(p.view.private_metadata ?? "{}");
 				const flat = flattenState(p.view.state.values);
+				const db = drizzle(env.DB);
+
+				await db
+					.update(attendance)
+					.set({ note: flat.rsvp_note?.value ?? "" })
+					.where(
+						and(
+							eq(attendance.meetingId, meetingId),
+							eq(attendance.userId, p.user.id),
+						),
+					)
+					.run();
+
+				// Non-admins only see the note field, so there's nothing else to save.
+				if (!flat.name) return;
+
 				const name: string = flat.name?.value ?? "";
 				const description: string = flat.description?.value ?? "";
 				const scheduled_at: number = flat.datetime?.selected_date_time ?? 0;
@@ -659,7 +675,6 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 					: null;
 				const channelId: string = flat.channel?.selected_conversation ?? "";
 
-				const db = drizzle(env.DB);
 				await db
 					.update(meetingTable)
 					.set({
