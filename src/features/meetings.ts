@@ -31,7 +31,12 @@ interface BlockActionPayload {
 		value?: string;
 		selected_options?: { value: string }[];
 	}[];
-	view?: { id: string; hash: string; root_view_id?: string };
+	view?: {
+		id: string;
+		hash: string;
+		root_view_id?: string;
+		state?: { values: Record<string, Record<string, unknown>> };
+	};
 }
 
 /** Typed Slack view submission payload */
@@ -267,10 +272,15 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 	slackApp.action("repeat_toggle", async ({ context, payload }) => {
 		const p = payload as BlockActionPayload;
 		const isRecurring = (p.actions[0].selected_options?.length ?? 0) > 0;
+		const flat = flattenState(p.view?.state?.values ?? {});
 		await context.client.views.update({
 			view_id: p.view!.id,
 			hash: p.view!.hash,
-			view: buildCreateModal(isRecurring),
+			view: buildCreateModal(isRecurring, {
+				name: flat.name?.value,
+				description: flat.description?.value,
+				channelId: flat.channel?.selected_conversation,
+			}),
 		});
 	});
 

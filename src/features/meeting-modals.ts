@@ -72,12 +72,21 @@ export function buildListModal(
 	};
 }
 
-export function buildCreateModal(isRecurring: boolean): Modal {
+export function buildCreateModal(
+	isRecurring: boolean,
+	// Carried over when the recurring toggle rebuilds the view, so typing
+	// isn't lost.
+	initial: { name?: string; description?: string; channelId?: string } = {},
+): Modal {
 	const baseBlocks: Block[] = [
 		{
 			type: "input",
 			block_id: "name_block",
-			element: { type: "plain_text_input", action_id: "name" },
+			element: {
+				type: "plain_text_input",
+				action_id: "name",
+				...(initial.name ? { initial_value: initial.name } : {}),
+			},
 			label: { type: "plain_text", text: "Meeting name" },
 		},
 		{
@@ -87,6 +96,7 @@ export function buildCreateModal(isRecurring: boolean): Modal {
 				type: "plain_text_input",
 				action_id: "description",
 				multiline: true,
+				...(initial.description ? { initial_value: initial.description } : {}),
 			},
 			label: { type: "plain_text", text: "Description" },
 			optional: true,
@@ -98,6 +108,9 @@ export function buildCreateModal(isRecurring: boolean): Modal {
 				type: "conversations_select",
 				action_id: "channel",
 				filter: { include: ["public", "private"] },
+				...(initial.channelId
+					? { initial_conversation: initial.channelId }
+					: {}),
 			},
 			label: { type: "plain_text", text: "Post to channel" },
 		},
