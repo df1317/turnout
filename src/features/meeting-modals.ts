@@ -4,6 +4,8 @@
  * Slack event handlers in features/meetings.ts.
  */
 
+import { isPosted, TEAMSNAP_CHANNEL, UNPOSTED_TS } from "../lib/announcements";
+
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 // biome-ignore lint/suspicious/noExplicitAny: Slack Block Kit shapes are untyped
@@ -218,7 +220,8 @@ export function buildCreateModal(
 
 /**
  * Describe whether/when a meeting's announcement will be posted, for the
- * admin subtitle in the edit modal. `canPostNow` gates the "Post Now" button.
+ * admin subtitle in the edit modal, and gate the three announcement controls:
+ * "Post Now", its companion "Delete Now", and "Turn On Auto-Post".
  */
 function buildPostingStatus(
 	meeting: {
@@ -228,46 +231,63 @@ function buildPostingStatus(
 		cancelled: number;
 	},
 	announcementWindowSeconds?: number,
-): { text: string; canPostNow: boolean } {
+): {
+	text: string;
+	canPostNow: boolean;
+	canUnpost: boolean;
+	canEnableAutoPost?: boolean;
+} {
+	const live = isPosted(meeting.message_ts);
 	if (meeting.cancelled) {
 		return {
-			text: "This meeting is cancelled and won't be posted.",
+			text: live
+				? `This meeting is cancelled. Its announcement in <#${meeting.channel_id}> is struck through.`
+				: "This meeting is cancelled and won't be posted.",
 			canPostNow: false,
+			canUnpost: live,
 		};
 	}
 	const now = Math.floor(Date.now() / 1000);
-	if (!meeting.channel_id) {
-		let when = "immediately";
-		if (announcementWindowSeconds != null) {
-			const postAt = meeting.scheduled_at - announcementWindowSeconds;
-			if (postAt > now) {
-				when = `on <!date^${postAt}^{date_long_pretty} at {time}|${new Date(postAt * 1000).toISOString()}>`;
-			}
-		}
+
+	// When the sweep would announce this meeting, phrased for reuse in both the
+	// scheduled and the taken-down wording.
+	const postAt =
+		announcementWindowSeconds != null
+			? meeting.scheduled_at - announcementWindowSeconds
+			: now;
+	const due = postAt <= now;
+	const when = due
+		? "within the minute"
+		: `on <!date^${postAt}^{date_long_pretty} at {time}|${new Date(postAt * 1000).toISOString()}>`;
+
+	if (!meeting.channel_id || meeting.channel_id === TEAMSNAP_CHANNEL) {
 		return {
 			text: `Pick a channel below to announce it — it would post ${when}.`,
 			canPostNow: false,
+			canUnpost: false,
 		};
 	}
-	if (meeting.message_ts) {
+	if (live) {
 		return {
-			text: `Posted in <#${meeting.channel_id}>.`,
+			text: `Posted in <#${meeting.channel_id}>. *Delete Now* removes that message; the meeting itself stays.`,
 			canPostNow: false,
+			canUnpost: true,
 		};
 	}
-	if (announcementWindowSeconds != null) {
-		const postAt = meeting.scheduled_at - announcementWindowSeconds;
-		if (postAt > now) {
-			const postAtStr = `<!date^${postAt}^{date_long_pretty} at {time}|${new Date(postAt * 1000).toISOString()}>`;
-			return {
-				text: `Will auto-post in <#${meeting.channel_id}> on ${postAtStr}. Use *Post Now* to announce it early.`,
-				canPostNow: true,
-			};
-		}
+	if (meeting.message_ts === UNPOSTED_TS) {
+		return {
+			text: `Would post in <#${meeting.channel_id}> ${when}, but auto-posting is off — use *Turn On Auto-Post* to let it, or *Post Now* to announce it immediately.`,
+			canPostNow: true,
+			canUnpost: false,
+			canEnableAutoPost: true,
+		};
 	}
 	return {
-		text: `Set to post in <#${meeting.channel_id}>. It should appear shortly. Use *Post Now* to announce it immediately.`,
+		text: due
+			? `Due to post in <#${meeting.channel_id}> ${when}. Use *Post Now* to announce it immediately.`
+			: `Will auto-post in <#${meeting.channel_id}> ${when}. Use *Post Now* to announce it early.`,
 		canPostNow: true,
+		canUnpost: false,
 	};
 }
 
@@ -287,6 +307,47 @@ export function buildEditModal(
 	announcementWindowSeconds?: number,
 ): Modal {
 	const posting = buildPostingStatus(meeting, announcementWindowSeconds);
+
+	// Buttons that act on the Slack announcement, kept in their own row so
+	// "Delete Now" is never mistaken for "Delete Meeting" below it.
+	const announcementButtons: Block[] = [];
+	if (posting.canPostNow) {
+		announcementButtons.push({
+			type: "button",
+			text: { type: "plain_text", text: "Post Now" },
+			action_id: "meeting_post_now",
+			value: String(meeting.id),
+			style: "primary",
+		});
+	}
+	if (posting.canUnpost) {
+		announcementButtons.push({
+			type: "button",
+			text: { type: "plain_text", text: "Delete Now" },
+			action_id: "meeting_unpost",
+			value: String(meeting.id),
+			style: "danger",
+			confirm: {
+				title: { type: "plain_text", text: "Delete Announcement?" },
+				text: {
+					type: "mrkdwn",
+					text: `This removes the Slack message for *${meeting.name}* and stops it auto-posting. The meeting and its RSVPs stay put.`,
+				},
+				confirm: { type: "plain_text", text: "Delete Announcement" },
+				deny: { type: "plain_text", text: "Keep" },
+				style: "danger",
+			},
+		});
+	}
+	if (posting.canEnableAutoPost) {
+		announcementButtons.push({
+			type: "button",
+			text: { type: "plain_text", text: "Turn On Auto-Post" },
+			action_id: "meeting_enable_autopost",
+			value: String(meeting.id),
+		});
+	}
+
 	const actionButtons: Block[] = meeting.cancelled
 		? [
 				{
@@ -317,19 +378,9 @@ export function buildEditModal(
 				},
 			];
 
-	if (posting.canPostNow) {
-		actionButtons.unshift({
-			type: "button",
-			text: { type: "plain_text", text: "Post Now" },
-			action_id: "meeting_post_now",
-			value: String(meeting.id),
-			style: "primary",
-		});
-	}
-
 	actionButtons.push({
 		type: "button",
-		text: { type: "plain_text", text: "Delete" },
+		text: { type: "plain_text", text: "Delete Meeting" },
 		action_id: "meeting_delete",
 		value: String(meeting.id),
 		style: "danger",
@@ -339,7 +390,7 @@ export function buildEditModal(
 				type: "mrkdwn",
 				text: `This will permanently delete *${meeting.name}* and all RSVPs.`,
 			},
-			confirm: { type: "plain_text", text: "Delete" },
+			confirm: { type: "plain_text", text: "Delete Meeting" },
 			deny: { type: "plain_text", text: "Keep" },
 			style: "danger",
 		},
@@ -449,9 +500,23 @@ export function buildEditModal(
 			},
 			{
 				type: "context",
-				elements: [{ type: "mrkdwn", text: posting.text }],
+				elements: [
+					{ type: "mrkdwn", text: `📣 *Announcement* — ${posting.text}` },
+				],
 			},
+			...(announcementButtons.length
+				? [{ type: "actions", elements: announcementButtons }]
+				: []),
 			{ type: "divider" },
+			{
+				type: "context",
+				elements: [
+					{
+						type: "mrkdwn",
+						text: "🗓️ *This meeting* — these change the meeting itself, not just its Slack post.",
+					},
+				],
+			},
 			{ type: "actions", elements: actionButtons },
 		);
 	}

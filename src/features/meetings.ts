@@ -11,7 +11,13 @@ import { isAdmin } from "../lib/admin";
 import {
 	updateAnnouncement as _updateAnnouncement,
 	buildAnnouncementBlocks,
+	enableAutoPost,
 	getAnnouncementWindowSeconds,
+	isPosted,
+	postAnnouncement,
+	TEAMSNAP_CHANNEL,
+	UNPOSTED_TS,
+	unpostAnnouncement,
 } from "../lib/announcements";
 import { generateDates, zonedDateTimeToUnix } from "../lib/recurrence";
 import { flattenState, postWithJoin } from "../lib/slack-utils";
@@ -256,16 +262,20 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 
 			if (!meetingRow || !p.view) return;
 
-			await context.client.views.update({
-				view_id: p.view.id,
-				hash: p.view.hash,
-				view: buildEditModal(
-					meetingRow,
-					adminUser,
-					{ status, note },
-					windowSeconds,
-				),
-			});
+			await Promise.all([
+				context.client.views.update({
+					view_id: p.view.id,
+					hash: p.view.hash,
+					view: buildEditModal(
+						meetingRow,
+						adminUser,
+						{ status, note },
+						windowSeconds,
+					),
+				}),
+				// Keep the posted announcement's attendee list in step with the modal.
+				updateAnnouncement(context.client, env, meetingRow),
+			]);
 		});
 	}
 
@@ -396,36 +406,120 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 			.from(meetingTable)
 			.where(eq(meetingTable.id, meetingId))
 			.get();
-		if (!meeting || meeting.cancelled || !meeting.channel_id) return;
+		if (
+			!meeting ||
+			meeting.cancelled ||
+			!meeting.channel_id ||
+			meeting.channel_id === TEAMSNAP_CHANNEL
+		)
+			return;
 
-		// Only post if it hasn't been announced yet; otherwise this is a no-op
-		// refresh (e.g. two admins clicked at once).
-		if (!meeting.message_ts) {
-			const post = await postWithJoin(context.client, meeting.channel_id, {
-				channel: meeting.channel_id,
-				text: `Meeting: ${meeting.name}`,
-				blocks: buildAnnouncementBlocks(meeting, {
-					yes: [],
-					maybe: [],
-					no: [],
-				}),
-			}).catch((err: unknown) => {
+		// Only post if it isn't already live; otherwise this is a no-op refresh
+		// (e.g. two admins clicked at once).
+		if (!isPosted(meeting.message_ts)) {
+			const posted = await postAnnouncement(
+				context.client,
+				env.DB,
+				meeting,
+			).catch((err: unknown) => {
 				console.error(
 					`Failed to post meeting ${meeting.id} to ${meeting.channel_id}:`,
 					err,
 				);
 				return null;
 			});
-			if (post) {
-				meeting.channel_id = (post as { channel: string }).channel;
-				meeting.message_ts = (post as { ts: string }).ts;
-				await db
-					.update(meetingTable)
-					.set({ channelId: meeting.channel_id, messageTs: meeting.message_ts })
-					.where(eq(meetingTable.id, meetingId))
-					.run();
+			if (posted) {
+				meeting.channel_id = posted.channel_id;
+				meeting.message_ts = posted.message_ts;
 			}
 		}
+
+		const windowSeconds = await getAnnouncementWindowSeconds(env.DB);
+		await Promise.all([
+			context.client.views.update({
+				view_id: p.view!.id,
+				view: buildEditModal(meeting, true, undefined, windowSeconds),
+			}),
+			rootViewId
+				? refreshListView(context.client, env, rootViewId, true)
+				: Promise.resolve(),
+		]);
+	});
+
+	slackApp.action("meeting_unpost", async ({ context, payload }) => {
+		const userId = context.userId;
+		if (!userId) return;
+		if (!(await isAdmin(env.DB, context.client, userId))) return;
+		const p = payload as BlockActionPayload;
+		const value = p.actions?.[0]?.value;
+		if (!value) return;
+		const meetingId = Number(value);
+		const rootViewId = p.view?.root_view_id;
+		const db = drizzle(env.DB);
+		const meeting = await db
+			.select({
+				id: meetingTable.id,
+				name: meetingTable.name,
+				description: meetingTable.description,
+				scheduled_at: meetingTable.scheduledAt,
+				end_time: meetingTable.endTime,
+				channel_id: meetingTable.channelId,
+				message_ts: meetingTable.messageTs,
+				cancelled: meetingTable.cancelled,
+			})
+			.from(meetingTable)
+			.where(eq(meetingTable.id, meetingId))
+			.get();
+		if (!meeting || !isPosted(meeting.message_ts)) return;
+
+		const removed = await unpostAnnouncement(context.client, env.DB, meeting)
+			.then(() => true)
+			.catch((err: unknown) => {
+				console.error(`Failed to unpost meeting ${meeting.id}:`, err);
+				return false;
+			});
+		if (removed) meeting.message_ts = UNPOSTED_TS;
+
+		const windowSeconds = await getAnnouncementWindowSeconds(env.DB);
+		await Promise.all([
+			context.client.views.update({
+				view_id: p.view!.id,
+				view: buildEditModal(meeting, true, undefined, windowSeconds),
+			}),
+			rootViewId
+				? refreshListView(context.client, env, rootViewId, true)
+				: Promise.resolve(),
+		]);
+	});
+
+	slackApp.action("meeting_enable_autopost", async ({ context, payload }) => {
+		const userId = context.userId;
+		if (!userId) return;
+		if (!(await isAdmin(env.DB, context.client, userId))) return;
+		const p = payload as BlockActionPayload;
+		const value = p.actions?.[0]?.value;
+		if (!value) return;
+		const meetingId = Number(value);
+		const rootViewId = p.view?.root_view_id;
+		const db = drizzle(env.DB);
+		const meeting = await db
+			.select({
+				id: meetingTable.id,
+				name: meetingTable.name,
+				description: meetingTable.description,
+				scheduled_at: meetingTable.scheduledAt,
+				end_time: meetingTable.endTime,
+				channel_id: meetingTable.channelId,
+				message_ts: meetingTable.messageTs,
+				cancelled: meetingTable.cancelled,
+			})
+			.from(meetingTable)
+			.where(eq(meetingTable.id, meetingId))
+			.get();
+		if (!meeting || isPosted(meeting.message_ts)) return;
+
+		await enableAutoPost(env.DB, meetingId);
+		meeting.message_ts = "";
 
 		const windowSeconds = await getAnnouncementWindowSeconds(env.DB);
 		await Promise.all([
@@ -770,44 +864,22 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 					})
 					.run();
 
-				const [attendanceRows, meeting] = await Promise.all([
-					db
-						.select({ user_id: attendance.userId, status: attendance.status })
-						.from(attendance)
-						.where(eq(attendance.meetingId, meetingId))
-						.all(),
-					db
-						.select({
-							id: meetingTable.id,
-							name: meetingTable.name,
-							description: meetingTable.description,
-							scheduled_at: meetingTable.scheduledAt,
-							end_time: meetingTable.endTime,
-							channel_id: meetingTable.channelId,
-							message_ts: meetingTable.messageTs,
-						})
-						.from(meetingTable)
-						.where(eq(meetingTable.id, meetingId))
-						.get(),
-				]);
+				const meeting = await db
+					.select({
+						id: meetingTable.id,
+						name: meetingTable.name,
+						description: meetingTable.description,
+						scheduled_at: meetingTable.scheduledAt,
+						end_time: meetingTable.endTime,
+						channel_id: meetingTable.channelId,
+						message_ts: meetingTable.messageTs,
+						cancelled: meetingTable.cancelled,
+					})
+					.from(meetingTable)
+					.where(eq(meetingTable.id, meetingId))
+					.get();
 
-				const attendees = {
-					yes: [] as string[],
-					maybe: [] as string[],
-					no: [] as string[],
-				};
-				for (const row of attendanceRows) {
-					attendees[row.status as "yes" | "maybe" | "no"].push(row.user_id);
-				}
-
-				if (meeting) {
-					await req.context.client.chat.update({
-						channel: meeting.channel_id,
-						ts: meeting.message_ts,
-						text: `Meeting: ${meeting.name}`,
-						blocks: buildAnnouncementBlocks(meeting, attendees),
-					});
-				}
+				if (meeting) await updateAnnouncement(req.context.client, env, meeting);
 			} catch (err) {
 				console.error("rsvp_modal error:", err);
 			}

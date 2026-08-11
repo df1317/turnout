@@ -40,11 +40,15 @@ export default {
 	},
 
 	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-		ctx.waitUntil(flushPendingAnnouncements(env));
-
 		if (event.cron === "0 6 * * *") {
 			ctx.waitUntil(syncAllUsers(env.DB, env.SLACK_ADMIN_TOKEN));
-			ctx.waitUntil(checkPendingMeetings(env));
+			return;
 		}
+
+		// Every minute, so announcements land when they come due. Kept off the
+		// daily trigger as well: at 06:00 both crons fire, and two concurrent
+		// sweeps would post the same meeting twice.
+		ctx.waitUntil(flushPendingAnnouncements(env));
+		ctx.waitUntil(checkPendingMeetings(env));
 	},
 };

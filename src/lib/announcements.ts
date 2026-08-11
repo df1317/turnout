@@ -8,9 +8,50 @@ import {
 	pendingAnnouncement,
 } from "../db/schema";
 import type { Env } from "../index";
+import { postWithJoin } from "./slack-utils";
 
 /** Default number of days in advance that meetings get announced. */
 const DEFAULT_ANNOUNCEMENT_WINDOW_DAYS = 14;
+
+/**
+ * `message_ts` marking an announcement an admin deliberately took down. It is
+ * deliberately not a real timestamp, so the daily sweep (which only picks up
+ * `""`) leaves the meeting alone until someone posts it again by hand.
+ */
+export const UNPOSTED_TS = "unposted";
+
+/** Channel placeholder the TeamSnap importer uses for attendance-only rows. */
+export const TEAMSNAP_CHANNEL = "teamsnap-import";
+
+/**
+ * True when `ts` points at a live Slack message. Real timestamps look like
+ * "1614987900.001200"; imported and taken-down rows carry placeholders such as
+ * "none" or "unposted", which chat.update and chat.delete reject outright.
+ */
+export function isPosted(ts?: string | null): boolean {
+	return !!ts && /^\d+\.\d+$/.test(ts);
+}
+
+/** Every RSVP for a meeting, bucketed by status. */
+export async function getAttendees(
+	d1: D1Database,
+	meetingId: number,
+): Promise<{ yes: string[]; maybe: string[]; no: string[] }> {
+	const db = drizzle(d1);
+	const rows = await db
+		.select({ user_id: attendance.userId, status: attendance.status })
+		.from(attendance)
+		.where(eq(attendance.meetingId, meetingId));
+	const attendees = {
+		yes: [] as string[],
+		maybe: [] as string[],
+		no: [] as string[],
+	};
+	for (const row of rows) {
+		attendees[row.status as "yes" | "maybe" | "no"].push(row.user_id);
+	}
+	return attendees;
+}
 
 /**
  * Read the announcement window (how far ahead a meeting is announced) from
@@ -142,9 +183,7 @@ export async function updateAnnouncement(
 		cancelled: number;
 	},
 ): Promise<void> {
-	// A real Slack ts looks like "1614987900.001200". Imported meetings carry
-	// placeholders such as "none", which chat.update rejects outright.
-	if (!/^\d+\.\d+$/.test(m.message_ts)) return;
+	if (!isPosted(m.message_ts)) return;
 	if (m.cancelled) {
 		await client.chat.update({
 			channel: m.channel_id,
@@ -154,25 +193,87 @@ export async function updateAnnouncement(
 		});
 		return;
 	}
-	const db = drizzle(d1);
-	const attendanceRows = await db
-		.select({ user_id: attendance.userId, status: attendance.status })
-		.from(attendance)
-		.where(eq(attendance.meetingId, m.id));
-	const attendees = {
-		yes: [] as string[],
-		maybe: [] as string[],
-		no: [] as string[],
-	};
-	for (const row of attendanceRows) {
-		attendees[row.status as "yes" | "maybe" | "no"].push(row.user_id);
-	}
+	const attendees = await getAttendees(d1, m.id);
 	await client.chat.update({
 		channel: m.channel_id,
 		ts: m.message_ts,
 		text: `Meeting: ${m.name}`,
 		blocks: buildAnnouncementBlocks(m, attendees),
 	});
+}
+
+/**
+ * Announce a meeting in its channel with its current RSVPs and record where the
+ * message landed. Throws if Slack rejects the post; callers decide how loud to
+ * be about it.
+ */
+export async function postAnnouncement(
+	// biome-ignore lint/suspicious/noExplicitAny: Slack client type is incomplete
+	client: any,
+	d1: D1Database,
+	m: {
+		id: number;
+		name: string;
+		description: string;
+		scheduled_at: number;
+		end_time?: number | null;
+		channel_id: string;
+	},
+): Promise<{ channel_id: string; message_ts: string }> {
+	const attendees = await getAttendees(d1, m.id);
+	const posted = (await postWithJoin(client, m.channel_id, {
+		channel: m.channel_id,
+		text: `Meeting: ${m.name}`,
+		blocks: buildAnnouncementBlocks(m, attendees),
+	})) as { ts?: string; channel?: string };
+
+	if (!posted.ts) throw new Error("Slack accepted the post but returned no ts");
+
+	const channel_id = posted.channel ?? m.channel_id;
+	await drizzle(d1)
+		.update(meeting)
+		.set({ channelId: channel_id, messageTs: posted.ts })
+		.where(eq(meeting.id, m.id));
+
+	return { channel_id, message_ts: posted.ts };
+}
+
+/**
+ * Hand a meeting back to the daily sweep by clearing the "taken down" sentinel,
+ * so it announces itself on schedule again.
+ */
+export async function enableAutoPost(
+	d1: D1Database,
+	meetingId: number,
+): Promise<void> {
+	await drizzle(d1)
+		.update(meeting)
+		.set({ messageTs: "" })
+		.where(eq(meeting.id, meetingId));
+}
+
+/**
+ * Take an announcement back down. The meeting itself survives; it just stops
+ * being visible in Slack, and stays that way until someone posts it again.
+ */
+export async function unpostAnnouncement(
+	// biome-ignore lint/suspicious/noExplicitAny: Slack client type is incomplete
+	client: any,
+	d1: D1Database,
+	m: { id: number; channel_id: string; message_ts: string },
+): Promise<void> {
+	if (isPosted(m.message_ts)) {
+		// A message that is already gone is the state we wanted anyway.
+		await client.chat
+			.delete({ channel: m.channel_id, ts: m.message_ts })
+			.catch((err: { error?: string }) => {
+				if (err?.error !== "message_not_found") throw err;
+			});
+	}
+	await drizzle(d1)
+		.update(meeting)
+		.set({ messageTs: UNPOSTED_TS })
+		.where(eq(meeting.id, m.id));
 }
 
 export async function checkPendingMeetings(env: Env) {
@@ -187,12 +288,14 @@ export async function checkPendingMeetings(env: Env) {
 			name: meeting.name,
 			description: meeting.description,
 			scheduled_at: meeting.scheduledAt,
+			end_time: meeting.endTime,
 			channel_id: meeting.channelId,
 		})
 		.from(meeting)
 		.where(
 			and(
 				ne(meeting.channelId, ""),
+				ne(meeting.channelId, TEAMSNAP_CHANNEL),
 				eq(meeting.messageTs, ""),
 				eq(meeting.cancelled, 0),
 				gt(meeting.scheduledAt, now),
@@ -206,27 +309,7 @@ export async function checkPendingMeetings(env: Env) {
 
 	for (const m of pending) {
 		try {
-			await botClient.conversations
-				.join({ channel: m.channel_id })
-				.catch(() => {});
-
-			const blocks = buildAnnouncementBlocks(m, {
-				yes: [],
-				maybe: [],
-				no: [],
-			});
-			const posted = (await botClient.chat.postMessage({
-				channel: m.channel_id,
-				text: `Meeting: ${m.name}`,
-				blocks,
-			})) as { ts?: string };
-
-			if (posted.ts) {
-				await db
-					.update(meeting)
-					.set({ messageTs: posted.ts })
-					.where(eq(meeting.id, m.id));
-			}
+			await postAnnouncement(botClient, env.DB, m);
 		} catch (err) {
 			console.error(`Failed to announce pending meeting ${m.id}:`, err);
 		}

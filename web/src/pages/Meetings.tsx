@@ -8,6 +8,8 @@ import {
 	HelpCircle,
 	Pencil,
 	Plus,
+	RotateCcw,
+	Send,
 	Trash2,
 	X,
 } from "lucide-react";
@@ -69,9 +71,17 @@ const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const DEFAULT_ANNOUNCEMENT_WINDOW_DAYS = 14;
 
+/** Mirrors the server: real Slack timestamps look like "1614987900.001200". */
+const isPosted = (ts?: string | null) => !!ts && /^\d+\.\d+$/.test(ts);
+/** Sentinel the server writes when an admin takes an announcement down. */
+const UNPOSTED_TS = "unposted";
+/** Channel placeholder on TeamSnap-imported, attendance-only meetings. */
+const TEAMSNAP_CHANNEL = "teamsnap-import";
+
 /**
  * Describe whether/when a meeting's Slack announcement will be posted, mirroring
- * the subtitle shown in the Slack edit modal. `canPostNow` gates the button.
+ * the subtitle shown in the Slack edit modal. `canPostNow` gates "Post Now" and
+ * `canUnpost` its companion, "Delete Post" ("Delete Now" in Slack).
  */
 function meetingPostingStatus(
 	m: {
@@ -81,38 +91,60 @@ function meetingPostingStatus(
 		cancelled: boolean;
 	},
 	windowDays: number,
-): { text: string; canPostNow: boolean } {
+): {
+	text: string;
+	canPostNow: boolean;
+	canUnpost: boolean;
+	canEnableAutoPost?: boolean;
+} {
+	const live = isPosted(m.message_ts);
 	if (m.cancelled) {
 		return {
-			text: "This meeting is cancelled and won't be posted.",
+			text: live
+				? "This meeting is cancelled. Its Slack announcement is struck through."
+				: "This meeting is cancelled and won't be posted.",
 			canPostNow: false,
+			canUnpost: live,
 		};
 	}
 	const now = Math.floor(Date.now() / 1000);
-	if (!m.channel_id) {
-		const postAt = m.scheduled_at - windowDays * 24 * 60 * 60;
-		const when =
-			postAt > now
-				? `on ${format(new Date(postAt * 1000), "MMM d 'at' h:mm a")}`
-				: "immediately";
+
+	// When the sweep would announce this meeting, phrased for reuse in both the
+	// scheduled and the taken-down wording.
+	const postAt = m.scheduled_at - windowDays * 24 * 60 * 60;
+	const due = postAt <= now;
+	const when = due
+		? "within the minute"
+		: `on ${format(new Date(postAt * 1000), "MMM d 'at' h:mm a")}`;
+
+	if (!m.channel_id || m.channel_id === TEAMSNAP_CHANNEL) {
 		return {
 			text: `Pick a channel to announce it — it would post ${when}.`,
 			canPostNow: false,
+			canUnpost: false,
 		};
 	}
-	if (m.message_ts) {
-		return { text: "Posted to Slack.", canPostNow: false };
-	}
-	const postAt = m.scheduled_at - windowDays * 24 * 60 * 60;
-	if (postAt > now) {
+	if (live) {
 		return {
-			text: `Will auto-post ${format(new Date(postAt * 1000), "MMM d 'at' h:mm a")}. Post now to announce it early.`,
+			text: "Posted to Slack. Delete Post removes that message; the meeting itself stays.",
+			canPostNow: false,
+			canUnpost: true,
+		};
+	}
+	if (m.message_ts === UNPOSTED_TS) {
+		return {
+			text: `Would post ${when}, but auto-posting is off — Turn On Auto-Post lets it, or Post Now announces it immediately.`,
 			canPostNow: true,
+			canUnpost: false,
+			canEnableAutoPost: true,
 		};
 	}
 	return {
-		text: "Set to post — it should appear shortly. Post now to announce it immediately.",
+		text: due
+			? `Due to post ${when}. Post Now announces it immediately.`
+			: `Will auto-post ${when}. Post Now announces it early.`,
 		canPostNow: true,
+		canUnpost: false,
 	};
 }
 
@@ -446,6 +478,8 @@ function EditMeetingDialog({
 	const [channel, setChannel] = useState(meeting.channel_id);
 	const [saving, setSaving] = useState(false);
 	const [posting, setPosting] = useState(false);
+	const [unposting, setUnposting] = useState(false);
+	const [enablingAutoPost, setEnablingAutoPost] = useState(false);
 	const [windowDays, setWindowDays] = useState(
 		DEFAULT_ANNOUNCEMENT_WINDOW_DAYS,
 	);
@@ -460,6 +494,7 @@ function EditMeetingDialog({
 	// Posting status reflects the saved meeting, since Post Now announces to the
 	// currently-saved channel — save channel edits before posting.
 	const posted = meetingPostingStatus(meeting, windowDays);
+	const busy = posting || unposting || enablingAutoPost || saving;
 
 	const handlePostNow = async () => {
 		setPosting(true);
@@ -470,6 +505,30 @@ function EditMeetingDialog({
 			onClose();
 		} finally {
 			setPosting(false);
+		}
+	};
+
+	const handleUnpost = async () => {
+		setUnposting(true);
+		try {
+			const { message_ts } = await api.unpostMeeting(meeting.id);
+			invalidateCache(CACHE_KEYS.meetings);
+			onSaved({ ...meeting, message_ts });
+			onClose();
+		} finally {
+			setUnposting(false);
+		}
+	};
+
+	const handleEnableAutoPost = async () => {
+		setEnablingAutoPost(true);
+		try {
+			const { message_ts } = await api.enableMeetingAutoPost(meeting.id);
+			invalidateCache(CACHE_KEYS.meetings);
+			onSaved({ ...meeting, message_ts });
+			onClose();
+		} finally {
+			setEnablingAutoPost(false);
 		}
 	};
 
@@ -586,22 +645,54 @@ function EditMeetingDialog({
 								className="h-8 text-xs"
 							/>
 						</div>
-						<p className="text-muted-foreground text-xs">{posted.text}</p>
+						<p className="text-muted-foreground text-xs">
+							<span className="font-medium text-foreground">
+								Slack announcement:{" "}
+							</span>
+							{posted.text}
+						</p>
 					</div>
 				</div>
 				<DialogFooter className="sm:justify-between">
-					{posted.canPostNow ? (
-						<Button
-							variant="secondary"
-							size="sm"
-							onClick={handlePostNow}
-							disabled={posting || saving}
-						>
-							{posting ? "Posting…" : "Post Now"}
-						</Button>
-					) : (
-						<span />
-					)}
+					{/* Left group acts on the Slack post only; the right group saves or
+					    dismisses the meeting itself. */}
+					<div className="flex flex-wrap gap-2">
+						{posted.canPostNow && (
+							<Button
+								variant="secondary"
+								size="sm"
+								onClick={handlePostNow}
+								disabled={busy}
+							>
+								<Send className="mr-1 size-3.5" />
+								{posting ? "Posting…" : "Post Now"}
+							</Button>
+						)}
+						{posted.canUnpost && (
+							<Button
+								variant="destructive"
+								size="sm"
+								onClick={handleUnpost}
+								disabled={busy}
+								title="Removes the Slack message. The meeting and its RSVPs stay."
+							>
+								<Trash2 className="mr-1 size-3.5" />
+								{unposting ? "Deleting…" : "Delete Post"}
+							</Button>
+						)}
+						{posted.canEnableAutoPost && (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={handleEnableAutoPost}
+								disabled={busy}
+								title="Lets the daily sweep announce this meeting on schedule again."
+							>
+								<RotateCcw className="mr-1 size-3.5" />
+								{enablingAutoPost ? "Enabling…" : "Turn On Auto-Post"}
+							</Button>
+						)}
+					</div>
 					<div className="flex gap-2">
 						<Button variant="outline" size="sm" onClick={onClose}>
 							Cancel

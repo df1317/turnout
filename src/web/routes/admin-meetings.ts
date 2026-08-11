@@ -15,7 +15,13 @@ import * as schema from "../../db/schema";
 import type { Env } from "../../index";
 import {
 	buildAnnouncementBlocks,
+	enableAutoPost,
 	getAnnouncementWindowSeconds,
+	isPosted,
+	postAnnouncement,
+	TEAMSNAP_CHANNEL,
+	UNPOSTED_TS,
+	unpostAnnouncement,
 	updateAnnouncement,
 } from "../../lib/announcements";
 import { generateDates } from "../../lib/recurrence";
@@ -125,25 +131,15 @@ adminMeetings.post("/", async (c) => {
 
 	if (channel_id && shouldAnnounceNow) {
 		const botClient = new SlackAPIClient(c.env.SLACK_BOT_TOKEN);
-		const blocks = buildAnnouncementBlocks(
-			{ id, name, description, scheduled_at, end_time: end_time ?? null },
-			{ yes: [], maybe: [], no: [] },
-		);
 		try {
-			const posted = (await postWithJoin(botClient, channel_id, {
-				channel: channel_id,
-				text: `Meeting: ${name}`,
-				blocks,
-			})) as { ts?: string };
-
-			message_ts = posted.ts ?? null;
-
-			if (message_ts) {
-				await db
-					.update(schema.meeting)
-					.set({ messageTs: message_ts })
-					.where(eq(schema.meeting.id, id));
-			}
+			({ message_ts } = await postAnnouncement(botClient, c.env.DB, {
+				id,
+				name,
+				description,
+				scheduled_at,
+				end_time: end_time ?? null,
+				channel_id,
+			}));
 		} catch (err) {
 			console.error("Failed to announce meeting:", err);
 			return c.json(
@@ -239,7 +235,7 @@ adminMeetings.put("/:id", async (c) => {
 
 	if (channelChanged && oldRow) {
 		// Delete the old announcement from the previous channel
-		if (oldRow.message_ts && oldRow.channel_id) {
+		if (isPosted(oldRow.message_ts) && oldRow.channel_id) {
 			await botClient.chat
 				.delete({ channel: oldRow.channel_id, ts: oldRow.message_ts })
 				.catch((err) =>
@@ -254,50 +250,23 @@ adminMeetings.put("/:id", async (c) => {
 		const inWindow = meetingRow.scheduled_at <= now + windowSeconds;
 		const notPast = endTime > now;
 
+		// The old message is gone either way, so the stale ts must not survive
+		// this branch — clear it first, then try to repost over the top.
+		await db
+			.update(schema.meeting)
+			.set({ messageTs: "" })
+			.where(eq(schema.meeting.id, id));
+
 		if (
 			meetingRow.channel_id &&
+			meetingRow.channel_id !== TEAMSNAP_CHANNEL &&
 			meetingRow.cancelled !== 1 &&
 			inWindow &&
 			notPast
 		) {
-			const attendanceRows = await db
-				.select({
-					user_id: schema.attendance.userId,
-					status: schema.attendance.status,
-				})
-				.from(schema.attendance)
-				.where(eq(schema.attendance.meetingId, id));
-			const attendees = {
-				yes: [] as string[],
-				maybe: [] as string[],
-				no: [] as string[],
-			};
-			for (const row of attendanceRows) {
-				attendees[row.status as "yes" | "maybe" | "no"].push(row.user_id);
-			}
-
-			const blocks = buildAnnouncementBlocks(meetingRow, attendees);
-			try {
-				const posted = (await postWithJoin(botClient, meetingRow.channel_id, {
-					channel: meetingRow.channel_id,
-					text: `Meeting: ${meetingRow.name}`,
-					blocks,
-				})) as { ts?: string };
-				if (posted.ts) {
-					await db
-						.update(schema.meeting)
-						.set({ messageTs: posted.ts })
-						.where(eq(schema.meeting.id, id));
-				}
-			} catch (err) {
-				console.error("failed to repost announcement in new channel:", err);
-			}
-		} else {
-			// Clear the stale message_ts so checkPendingMeetings can pick it up later
-			await db
-				.update(schema.meeting)
-				.set({ messageTs: "" })
-				.where(eq(schema.meeting.id, id));
+			await postAnnouncement(botClient, c.env.DB, meetingRow).catch((err) =>
+				console.error("failed to repost announcement in new channel:", err),
+			);
 		}
 	} else {
 		await updateAnnouncement(botClient, c.env.DB, meetingRow).catch((err) =>
@@ -329,46 +298,19 @@ adminMeetings.post("/:id/post", async (c) => {
 	if (!meetingRow) return c.json({ error: "Meeting not found" }, 404);
 	if (meetingRow.cancelled === 1)
 		return c.json({ error: "Meeting is cancelled" }, 400);
-	if (!meetingRow.channel_id)
+	if (!meetingRow.channel_id || meetingRow.channel_id === TEAMSNAP_CHANNEL)
 		return c.json({ error: "No channel selected for this meeting" }, 400);
 	// Already announced — nothing to do, just report the existing message.
-	if (meetingRow.message_ts)
+	if (isPosted(meetingRow.message_ts))
 		return c.json({ message_ts: meetingRow.message_ts });
-
-	const attendanceRows = await db
-		.select({
-			user_id: schema.attendance.userId,
-			status: schema.attendance.status,
-		})
-		.from(schema.attendance)
-		.where(eq(schema.attendance.meetingId, id));
-	const attendees = {
-		yes: [] as string[],
-		maybe: [] as string[],
-		no: [] as string[],
-	};
-	for (const row of attendanceRows) {
-		attendees[row.status as "yes" | "maybe" | "no"].push(row.user_id);
-	}
 
 	const botClient = new SlackAPIClient(c.env.SLACK_BOT_TOKEN);
 	try {
-		const posted = (await postWithJoin(botClient, meetingRow.channel_id, {
-			channel: meetingRow.channel_id,
-			text: `Meeting: ${meetingRow.name}`,
-			blocks: buildAnnouncementBlocks(meetingRow, attendees),
-		})) as { ts?: string; channel?: string };
-
-		const message_ts = posted.ts ?? null;
-		if (message_ts) {
-			await db
-				.update(schema.meeting)
-				.set({
-					messageTs: message_ts,
-					channelId: posted.channel ?? meetingRow.channel_id,
-				})
-				.where(eq(schema.meeting.id, id));
-		}
+		const { message_ts } = await postAnnouncement(
+			botClient,
+			c.env.DB,
+			meetingRow,
+		);
 		return c.json({ message_ts });
 	} catch (err) {
 		console.error(`Failed to post meeting ${id}:`, err);
@@ -377,6 +319,53 @@ adminMeetings.post("/:id/post", async (c) => {
 			500,
 		);
 	}
+});
+
+adminMeetings.post("/:id/unpost", async (c) => {
+	const id = Number(c.req.param("id"));
+	const db = drizzle(c.env.DB);
+	const meetingRow = await db
+		.select({
+			id: schema.meeting.id,
+			channel_id: schema.meeting.channelId,
+			message_ts: schema.meeting.messageTs,
+		})
+		.from(schema.meeting)
+		.where(eq(schema.meeting.id, id))
+		.get();
+
+	if (!meetingRow) return c.json({ error: "Meeting not found" }, 404);
+	if (!isPosted(meetingRow.message_ts))
+		return c.json({ error: "This meeting isn't posted" }, 400);
+
+	const botClient = new SlackAPIClient(c.env.SLACK_BOT_TOKEN);
+	try {
+		await unpostAnnouncement(botClient, c.env.DB, meetingRow);
+		return c.json({ message_ts: UNPOSTED_TS });
+	} catch (err) {
+		console.error(`Failed to unpost meeting ${id}:`, err);
+		return c.json(
+			{ error: `Failed to delete announcement: ${(err as Error).message}` },
+			500,
+		);
+	}
+});
+
+adminMeetings.post("/:id/auto-post", async (c) => {
+	const id = Number(c.req.param("id"));
+	const db = drizzle(c.env.DB);
+	const meetingRow = await db
+		.select({ message_ts: schema.meeting.messageTs })
+		.from(schema.meeting)
+		.where(eq(schema.meeting.id, id))
+		.get();
+
+	if (!meetingRow) return c.json({ error: "Meeting not found" }, 404);
+	if (isPosted(meetingRow.message_ts))
+		return c.json({ error: "This meeting is already posted" }, 400);
+
+	await enableAutoPost(c.env.DB, id);
+	return c.json({ message_ts: "" });
 });
 
 adminMeetings.post("/:id/cancel", async (c) => {

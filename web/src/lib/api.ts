@@ -279,6 +279,16 @@ export const api = {
 			await apiFetch(`/api/admin/meetings/${id}/post`, { method: "POST" })
 		).json();
 	},
+	async unpostMeeting(id: number): Promise<{ message_ts: string }> {
+		return (
+			await apiFetch(`/api/admin/meetings/${id}/unpost`, { method: "POST" })
+		).json();
+	},
+	async enableMeetingAutoPost(id: number): Promise<{ message_ts: string }> {
+		return (
+			await apiFetch(`/api/admin/meetings/${id}/auto-post`, { method: "POST" })
+		).json();
+	},
 	async cancelMeeting(id: number, cancelled: boolean): Promise<void> {
 		await apiFetch(`/api/admin/meetings/${id}/cancel`, {
 			method: "POST",
