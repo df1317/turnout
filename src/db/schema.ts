@@ -106,6 +106,22 @@ export const webSession = sqliteTable(
 	}),
 );
 
+export const slackTokenLink = sqliteTable(
+	"slack_token_link",
+	{
+		token: text("token").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => slackUser.userId, { onDelete: "cascade" }),
+		createdAt: integer("created_at").notNull(),
+		expiresAt: integer("expires_at").notNull(),
+	},
+	(table) => ({
+		userIdIdx: index("slack_token_link_user_id_idx").on(table.userId),
+		expiresAtIdx: index("slack_token_link_expires_at_idx").on(table.expiresAt),
+	}),
+);
+
 export const kvStore = sqliteTable("kv_store", {
 	key: text("key").primaryKey(),
 	value: text("value").notNull(),
