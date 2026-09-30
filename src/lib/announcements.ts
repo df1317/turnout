@@ -134,6 +134,12 @@ export function buildAnnouncementBlocks(
 					value: String(m.id),
 					style: "danger",
 				},
+				{
+					type: "button",
+					text: { type: "plain_text", text: ":pencil2:" },
+					action_id: "rsvp_note",
+					value: String(m.id),
+				},
 			],
 		},
 	];

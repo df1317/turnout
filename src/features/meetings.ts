@@ -105,6 +105,50 @@ const updateAnnouncement = (
 	meeting: Parameters<typeof _updateAnnouncement>[2],
 ) => _updateAnnouncement(client, env.DB, meeting);
 
+/** Columns every announcement render needs from a meeting row. */
+const announcementColumns = {
+	id: meetingTable.id,
+	name: meetingTable.name,
+	description: meetingTable.description,
+	scheduled_at: meetingTable.scheduledAt,
+	end_time: meetingTable.endTime,
+	channel_id: meetingTable.channelId,
+	message_ts: meetingTable.messageTs,
+	cancelled: meetingTable.cancelled,
+};
+
+type Db = ReturnType<typeof drizzle>;
+
+/** Fetch a single meeting with the columns needed to render its announcement. */
+const getMeeting = (db: Db, id: number) =>
+	db
+		.select(announcementColumns)
+		.from(meetingTable)
+		.where(eq(meetingTable.id, id))
+		.get();
+
+/** Fetch a user's RSVP (status + note) for a meeting, if any. */
+const getRsvp = (db: Db, meetingId: number, userId: string) =>
+	db
+		.select({ status: attendance.status, note: attendance.note })
+		.from(attendance)
+		.where(
+			and(eq(attendance.meetingId, meetingId), eq(attendance.userId, userId)),
+		)
+		.get();
+
+/** Re-render a meeting's posted announcement to reflect the latest state. */
+const refreshAnnouncement = async (
+	// biome-ignore lint/suspicious/noExplicitAny: Slack client type is incomplete
+	client: any,
+	env: Env,
+	db: Db,
+	meetingId: number,
+) => {
+	const meeting = await getMeeting(db, meetingId);
+	if (meeting) await updateAnnouncement(client, env, meeting);
+};
+
 const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 	const openMeetingList = async (
 		context: { userId?: string; client: any },
@@ -174,33 +218,8 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 		const db = drizzle(env.DB);
 		const [adminUser, meetingRow, rsvpRow, windowSeconds] = await Promise.all([
 			isAdmin(env.DB, context.client, userId),
-			db
-				.select({
-					id: meetingTable.id,
-					name: meetingTable.name,
-					description: meetingTable.description,
-					scheduled_at: meetingTable.scheduledAt,
-					end_time: meetingTable.endTime,
-					channel_id: meetingTable.channelId,
-					message_ts: meetingTable.messageTs,
-					cancelled: meetingTable.cancelled,
-				})
-				.from(meetingTable)
-				.where(eq(meetingTable.id, meetingId))
-				.get(),
-			db
-				.select({
-					status: attendance.status,
-					note: attendance.note,
-				})
-				.from(attendance)
-				.where(
-					and(
-						eq(attendance.meetingId, meetingId),
-						eq(attendance.userId, userId),
-					),
-				)
-				.get(),
+			getMeeting(db, meetingId),
+			getRsvp(db, meetingId, userId),
 			getAnnouncementWindowSeconds(env.DB),
 		]);
 
@@ -243,20 +262,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 			// Refresh the modal to show updated RSVP state
 			const [adminUser, meetingRow, windowSeconds] = await Promise.all([
 				isAdmin(env.DB, context.client, userId),
-				db
-					.select({
-						id: meetingTable.id,
-						name: meetingTable.name,
-						description: meetingTable.description,
-						scheduled_at: meetingTable.scheduledAt,
-						end_time: meetingTable.endTime,
-						channel_id: meetingTable.channelId,
-						message_ts: meetingTable.messageTs,
-						cancelled: meetingTable.cancelled,
-					})
-					.from(meetingTable)
-					.where(eq(meetingTable.id, meetingId))
-					.get(),
+				getMeeting(db, meetingId),
 				getAnnouncementWindowSeconds(env.DB),
 			]);
 
@@ -309,20 +315,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 			.set({ cancelled: 1 })
 			.where(eq(meetingTable.id, meetingId))
 			.run();
-		const meeting = await db
-			.select({
-				id: meetingTable.id,
-				name: meetingTable.name,
-				description: meetingTable.description,
-				scheduled_at: meetingTable.scheduledAt,
-				end_time: meetingTable.endTime,
-				channel_id: meetingTable.channelId,
-				message_ts: meetingTable.messageTs,
-				cancelled: meetingTable.cancelled,
-			})
-			.from(meetingTable)
-			.where(eq(meetingTable.id, meetingId))
-			.get();
+		const meeting = await getMeeting(db, meetingId);
 		if (meeting) {
 			const windowSeconds = await getAnnouncementWindowSeconds(env.DB);
 			await Promise.all([
@@ -353,20 +346,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 			.set({ cancelled: 0 })
 			.where(eq(meetingTable.id, meetingId))
 			.run();
-		const meeting = await db
-			.select({
-				id: meetingTable.id,
-				name: meetingTable.name,
-				description: meetingTable.description,
-				scheduled_at: meetingTable.scheduledAt,
-				end_time: meetingTable.endTime,
-				channel_id: meetingTable.channelId,
-				message_ts: meetingTable.messageTs,
-				cancelled: meetingTable.cancelled,
-			})
-			.from(meetingTable)
-			.where(eq(meetingTable.id, meetingId))
-			.get();
+		const meeting = await getMeeting(db, meetingId);
 		if (meeting) {
 			const windowSeconds = await getAnnouncementWindowSeconds(env.DB);
 			await Promise.all([
@@ -392,20 +372,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 		const meetingId = Number(value);
 		const rootViewId = p.view?.root_view_id;
 		const db = drizzle(env.DB);
-		const meeting = await db
-			.select({
-				id: meetingTable.id,
-				name: meetingTable.name,
-				description: meetingTable.description,
-				scheduled_at: meetingTable.scheduledAt,
-				end_time: meetingTable.endTime,
-				channel_id: meetingTable.channelId,
-				message_ts: meetingTable.messageTs,
-				cancelled: meetingTable.cancelled,
-			})
-			.from(meetingTable)
-			.where(eq(meetingTable.id, meetingId))
-			.get();
+		const meeting = await getMeeting(db, meetingId);
 		if (
 			!meeting ||
 			meeting.cancelled ||
@@ -456,20 +423,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 		const meetingId = Number(value);
 		const rootViewId = p.view?.root_view_id;
 		const db = drizzle(env.DB);
-		const meeting = await db
-			.select({
-				id: meetingTable.id,
-				name: meetingTable.name,
-				description: meetingTable.description,
-				scheduled_at: meetingTable.scheduledAt,
-				end_time: meetingTable.endTime,
-				channel_id: meetingTable.channelId,
-				message_ts: meetingTable.messageTs,
-				cancelled: meetingTable.cancelled,
-			})
-			.from(meetingTable)
-			.where(eq(meetingTable.id, meetingId))
-			.get();
+		const meeting = await getMeeting(db, meetingId);
 		if (!meeting || !isPosted(meeting.message_ts)) return;
 
 		const removed = await unpostAnnouncement(context.client, env.DB, meeting)
@@ -502,20 +456,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 		const meetingId = Number(value);
 		const rootViewId = p.view?.root_view_id;
 		const db = drizzle(env.DB);
-		const meeting = await db
-			.select({
-				id: meetingTable.id,
-				name: meetingTable.name,
-				description: meetingTable.description,
-				scheduled_at: meetingTable.scheduledAt,
-				end_time: meetingTable.endTime,
-				channel_id: meetingTable.channelId,
-				message_ts: meetingTable.messageTs,
-				cancelled: meetingTable.cancelled,
-			})
-			.from(meetingTable)
-			.where(eq(meetingTable.id, meetingId))
-			.get();
+		const meeting = await getMeeting(db, meetingId);
 		if (!meeting || isPosted(meeting.message_ts)) return;
 
 		await enableAutoPost(env.DB, meetingId);
@@ -543,20 +484,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 		const meetingId = Number(value);
 		const rootViewId = p.view?.root_view_id;
 		const db = drizzle(env.DB);
-		const meeting = await db
-			.select({
-				id: meetingTable.id,
-				name: meetingTable.name,
-				description: meetingTable.description,
-				scheduled_at: meetingTable.scheduledAt,
-				end_time: meetingTable.endTime,
-				channel_id: meetingTable.channelId,
-				message_ts: meetingTable.messageTs,
-				cancelled: meetingTable.cancelled,
-			})
-			.from(meetingTable)
-			.where(eq(meetingTable.id, meetingId))
-			.get();
+		const meeting = await getMeeting(db, meetingId);
 		await db.delete(meetingTable).where(eq(meetingTable.id, meetingId)).run();
 		await Promise.all([
 			context.client.views.update({
@@ -791,22 +719,7 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 					.where(eq(meetingTable.id, meetingId))
 					.run();
 
-				const meeting = await db
-					.select({
-						id: meetingTable.id,
-						name: meetingTable.name,
-						description: meetingTable.description,
-						scheduled_at: meetingTable.scheduledAt,
-						end_time: meetingTable.endTime,
-						channel_id: meetingTable.channelId,
-						message_ts: meetingTable.messageTs,
-						cancelled: meetingTable.cancelled,
-					})
-					.from(meetingTable)
-					.where(eq(meetingTable.id, meetingId))
-					.get();
-
-				if (meeting) await updateAnnouncement(req.context.client, env, meeting);
+				await refreshAnnouncement(req.context.client, env, db, meetingId);
 			} catch (err) {
 				console.error("meetings_edit error:", err);
 			}
@@ -819,22 +732,47 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 			const value = p.actions?.[0]?.value;
 			if (!value) return;
 			const meetingId = Number(value);
+			const userId = context.userId;
+			if (!userId) return;
 			const db = drizzle(env.DB);
-			const meeting = await db
-				.select({ name: meetingTable.name })
-				.from(meetingTable)
-				.where(eq(meetingTable.id, meetingId))
-				.get();
-			await context.client.views.open({
-				trigger_id: p.trigger_id,
-				view: buildRsvpModal(
-					meetingId,
-					status,
-					meeting?.name ?? "this meeting",
-				),
-			});
+
+			const existing = await getRsvp(db, meetingId, userId);
+
+			await db
+				.insert(attendance)
+				.values({ meetingId, userId, status, note: existing?.note ?? "" })
+				.onConflictDoUpdate({
+					target: [attendance.meetingId, attendance.userId],
+					set: { status },
+				})
+				.run();
+
+			await refreshAnnouncement(context.client, env, db, meetingId);
 		});
 	}
+
+	slackApp.action("rsvp_note", async ({ context, payload }) => {
+		const p = payload as BlockActionPayload;
+		const value = p.actions?.[0]?.value;
+		if (!value) return;
+		const meetingId = Number(value);
+		const userId = context.userId;
+		const db = drizzle(env.DB);
+		const meeting = await db
+			.select({ name: meetingTable.name })
+			.from(meetingTable)
+			.where(eq(meetingTable.id, meetingId))
+			.get();
+		const existing = userId ? await getRsvp(db, meetingId, userId) : undefined;
+		await context.client.views.open({
+			trigger_id: p.trigger_id,
+			view: buildRsvpModal(
+				meetingId,
+				meeting?.name ?? "this meeting",
+				existing ?? undefined,
+			),
+		});
+	});
 
 	slackApp.viewSubmission(
 		"rsvp_modal",
@@ -842,44 +780,26 @@ const meetings = async (slackApp: SlackApp<SlackEdgeAppEnv>, env: Env) => {
 		async (req) => {
 			try {
 				const p = req.payload as ViewSubmissionPayload;
-				const { meetingId, status } = JSON.parse(
-					p.view.private_metadata ?? "{}",
-				);
+				const { meetingId } = JSON.parse(p.view.private_metadata ?? "{}");
 				const flat = flattenState(p.view.state.values);
+				const status = (flat.status?.selected_option?.value ?? "yes") as
+					| "yes"
+					| "maybe"
+					| "no";
 				const note: string = flat.note?.value ?? "";
 				const userId = p.user.id;
 
 				const db = drizzle(env.DB);
 				await db
 					.insert(attendance)
-					.values({
-						meetingId,
-						userId,
-						status: status as "yes" | "maybe" | "no",
-						note,
-					})
+					.values({ meetingId, userId, status, note })
 					.onConflictDoUpdate({
 						target: [attendance.meetingId, attendance.userId],
-						set: { status: status as "yes" | "maybe" | "no", note },
+						set: { status, note },
 					})
 					.run();
 
-				const meeting = await db
-					.select({
-						id: meetingTable.id,
-						name: meetingTable.name,
-						description: meetingTable.description,
-						scheduled_at: meetingTable.scheduledAt,
-						end_time: meetingTable.endTime,
-						channel_id: meetingTable.channelId,
-						message_ts: meetingTable.messageTs,
-						cancelled: meetingTable.cancelled,
-					})
-					.from(meetingTable)
-					.where(eq(meetingTable.id, meetingId))
-					.get();
-
-				if (meeting) await updateAnnouncement(req.context.client, env, meeting);
+				await refreshAnnouncement(req.context.client, env, db, meetingId);
 			} catch (err) {
 				console.error("rsvp_modal error:", err);
 			}

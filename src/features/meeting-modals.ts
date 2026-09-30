@@ -537,15 +537,21 @@ export function buildEditModal(
 
 export function buildRsvpModal(
 	meetingId: number,
-	status: "yes" | "maybe" | "no",
 	meetingName: string,
+	currentRsvp?: { status: "yes" | "maybe" | "no"; note: string },
 ): Modal {
-	const label =
-		status === "yes" ? "✅ Yes" : status === "maybe" ? "🤔 Maybe" : "❌ No";
+	const status = currentRsvp?.status ?? "yes";
+	const statusOptions = [
+		{ text: { type: "plain_text" as const, text: "✅ Yes" }, value: "yes" },
+		{ text: { type: "plain_text" as const, text: "🤔 Maybe" }, value: "maybe" },
+		{ text: { type: "plain_text" as const, text: "❌ No" }, value: "no" },
+	];
+	const initialOption =
+		statusOptions.find((o) => o.value === status) ?? statusOptions[0];
 	return {
 		type: "modal",
 		callback_id: "rsvp_modal",
-		private_metadata: JSON.stringify({ meetingId, status }),
+		private_metadata: JSON.stringify({ meetingId }),
 		title: { type: "plain_text", text: "RSVP" },
 		submit: { type: "plain_text", text: "Submit" },
 		close: { type: "plain_text", text: "Cancel" },
@@ -554,8 +560,19 @@ export function buildRsvpModal(
 				type: "section",
 				text: {
 					type: "mrkdwn",
-					text: `Responding *${label}* to *${meetingName}*.`,
+					text: `Responding to *${meetingName}*.`,
 				},
+			},
+			{
+				type: "input",
+				block_id: "status_block",
+				element: {
+					type: "radio_buttons",
+					action_id: "status",
+					options: statusOptions,
+					initial_option: initialOption,
+				},
+				label: { type: "plain_text", text: "Response" },
 			},
 			{
 				type: "input",
@@ -564,6 +581,7 @@ export function buildRsvpModal(
 					type: "plain_text_input",
 					action_id: "note",
 					multiline: true,
+					initial_value: currentRsvp?.note || undefined,
 				},
 				label: { type: "plain_text", text: "Note" },
 				optional: true,
