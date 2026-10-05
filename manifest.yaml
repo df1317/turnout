@@ -16,7 +16,7 @@ features:
       description: Set a user's role (admin only)
       usage_hint: "[@user] [student|parent|alumni|mentor]"
       should_escape: false
-    - command: /web
+    - command: /turnout
       url: https://turnout.df1317.workers.dev/api/slack
       description: Get the link to the web app
       should_escape: false
